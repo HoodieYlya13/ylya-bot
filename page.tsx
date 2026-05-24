@@ -295,8 +295,7 @@ My live vector-database RAG neural channel is currently syncing. In the meantime
                     v1.0
                   </span>
                 </h1>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <span className="size-1.5 rounded-full bg-apple-green animate-ping" />
+                <p className="text-xs text-muted-foreground">
                   Stateless Context Engine Active
                 </p>
               </div>
