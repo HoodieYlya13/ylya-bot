@@ -47,7 +47,8 @@
     }
   ],
   "architectural_deep_dive": {
-    "text": "The engine matches input queries against vectorized segments of profile.json and individual repository records. High-fidelity embedding is achieved via text-embedding-3-small (1536 dimensions), which is stored and indexed in a Supabase PostgreSQL instance using pgvector. Recruiter chat events are processed by standard Edge Routes, combining standard system instructions with relevant semantic snippets retrieved via our database hybrid ranking hook."
+    "text": "The engine matches input queries against vectorized segments of profile.json and individual repository records. High-fidelity embedding is achieved via text-embedding-3-small (1536 dimensions), which is stored and indexed in a Supabase PostgreSQL instance using pgvector. Recruiter chat events are processed by standard Edge Routes, combining standard system instructions with relevant semantic snippets retrieved via our database hybrid ranking hook.",
+    "illustration": null
   },
   "lessons_learned": "Injecting structural key data (like languages or contact details) directly into system contexts guarantees deterministic truth, while keeping semantic RAG strictly for project implementation logs yields the highest conversational coherence."
 }
