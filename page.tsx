@@ -86,10 +86,19 @@ export default function YlyaBotPage() {
   const [inputVal, setInputVal] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const messageIdCounter = useRef(0);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const isIframe =
+      typeof window !== "undefined" && window.self !== window.top;
+
+    if (isIframe && chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    } else messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
@@ -326,7 +335,10 @@ My live vector-database RAG neural channel is currently syncing. In the meantime
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto rounded-xl md:rounded-2xl bg-card/20 border border-border/50 backdrop-blur-xl p-3 md:p-6 shadow-inner flex flex-col gap-3 md:gap-4 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+        <div
+          ref={chatContainerRef}
+          className="flex-1 overflow-y-auto rounded-xl md:rounded-2xl bg-card/20 border border-border/50 backdrop-blur-xl p-3 md:p-6 shadow-inner flex flex-col gap-3 md:gap-4 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
+        >
           {messages.map((msg) => (
             <div
               key={msg.id}
