@@ -74,13 +74,36 @@ His primary contributions and engineering achievements at Equasens include:
   },
 ];
 
+async function readResponseStream(
+  response: Response,
+  onChunk: (accumulatedText: string, done: boolean) => void,
+) {
+  const reader = response.body?.getReader();
+  if (!reader)
+    throw new Error("No readable stream reader available on response");
+
+  const decoder = new TextDecoder();
+  let done = false;
+  let accumulatedText = "";
+
+  while (!done) {
+    const { value, done: doneReading } = await reader.read();
+    done = doneReading;
+    if (value) {
+      const chunk = decoder.decode(value, { stream: !done });
+      accumulatedText += chunk;
+      onChunk(accumulatedText, done);
+    }
+  }
+}
+
 export default function YlyaBotPage() {
   const safeBack = useSafeBack();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
       sender: "bot",
-      text: "Hello! I am **YlyaBot v1.0**, Ylya Martchenko's RAG-powered digital twin. My knowledge base is fully grounded in Ylya's centralized SSoT `profile.json` and cross-repo codebase vectors. Ask me anything about his technical expertise, projects, or background!",
+      text: "Hello! I am **YlyaBot v1.5**, Ylya Martchenko's RAG-powered digital twin. My knowledge base is fully grounded in Ylya's centralized SSoT `profile.json` and cross-repo codebase vectors. Ask me anything about his technical expertise, projects, or background!",
     },
   ]);
   const [inputVal, setInputVal] = useState("");
@@ -105,11 +128,40 @@ export default function YlyaBotPage() {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  const simulateBotResponse = (responseText: string) => {
+  const handleSend = async (textToSend: string) => {
+    if (!textToSend.trim()) return;
+
+    messageIdCounter.current += 1;
+    const userMsgId = `user-${messageIdCounter.current}`;
+
+    const updatedMessages = [
+      ...messages,
+      { id: userMsgId, sender: "user" as const, text: textToSend },
+    ];
+    setMessages(updatedMessages);
+    setInputVal("");
     setIsTyping(true);
 
-    setTimeout(() => {
+    try {
+      const apiMessages = updatedMessages
+        .filter((m) => m.id !== "welcome" && !m.id.startsWith("bot-err"))
+        .map((m) => ({
+          role:
+            m.sender === "user" ? ("user" as const) : ("assistant" as const),
+          content: m.text,
+        }));
+
+      const response = await fetch("/ylya-bot/api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: apiMessages }),
+      });
+
+      if (!response.ok)
+        throw new Error(`HTTP network error: status ${response.status}`);
+
       setIsTyping(false);
+
       messageIdCounter.current += 1;
       const newBotMessageId = `bot-${messageIdCounter.current}`;
 
@@ -118,53 +170,28 @@ export default function YlyaBotPage() {
         { id: newBotMessageId, sender: "bot", text: "", isStreaming: true },
       ]);
 
-      let currentIndex = 0;
-      const interval = setInterval(() => {
-        setMessages((prev) => {
-          return prev.map((msg) => {
-            if (msg.id === newBotMessageId) {
-              const nextText = responseText.slice(0, currentIndex + 3);
-              const finished = currentIndex >= responseText.length;
-              return {
-                ...msg,
-                text: nextText,
-                isStreaming: !finished,
-              };
-            }
-            return msg;
-          });
-        });
+      await readResponseStream(response, (accumulatedText, isStreamDone) => {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === newBotMessageId
+              ? { ...msg, text: accumulatedText, isStreaming: !isStreamDone }
+              : msg,
+          ),
+        );
+      });
+    } catch (error) {
+      console.error("🔴 Connection to YlyaBot Intelligence failed:", error);
+      setIsTyping(false);
 
-        currentIndex += 3;
-        if (currentIndex >= responseText.length) {
-          clearInterval(interval);
-        }
-      }, 12);
-    }, 900);
-  };
-
-  const handleSend = (textToSend: string) => {
-    if (!textToSend.trim()) return;
-
-    messageIdCounter.current += 1;
-    const userMsgId = `user-${messageIdCounter.current}`;
-    setMessages((prev) => [
-      ...prev,
-      { id: userMsgId, sender: "user", text: textToSend },
-    ]);
-    setInputVal("");
-
-    const preset = PRESET_QUESTIONS.find(
-      (q) => q.query.toLowerCase() === textToSend.toLowerCase(),
-    );
-    if (preset) simulateBotResponse(preset.response);
-    else {
-      const fallbackText = `I am currently running in a high-fidelity client simulation module linked to Ylya's centralized SSoT. 
-
-I've captured your query: **"${textToSend}"**. 
-
-My live vector-database RAG neural channel is currently syncing. In the meantime, you can explore my verified profile knowledge matrices by clicking any of the **preset context chips** above! These cover Ylya's core engineering projects, his work at **Equasens**, the **SSoT architecture**, and his **academic background** with absolute, hall-of-fame factual accuracy.`;
-      simulateBotResponse(fallbackText);
+      messageIdCounter.current += 1;
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `bot-err-${messageIdCounter.current}`,
+          sender: "bot",
+          text: "⚠️ I'm sorry, I'm having trouble connecting to my central matrix intelligence channel right now. Please try again, or reach out directly to Ylya at ylyamartchenko@gmail.com.",
+        },
+      ]);
     }
   };
 
@@ -301,7 +328,7 @@ My live vector-database RAG neural channel is currently syncing. In the meantime
                 <h1 className="text-base font-bold text-foreground flex items-center gap-1.5">
                   YlyaBot
                   <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-apple-blue/10 text-apple-blue border border-apple-blue/20">
-                    v1.0
+                    v1.5
                   </span>
                 </h1>
                 <p className="text-xs text-muted-foreground">
