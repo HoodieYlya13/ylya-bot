@@ -52,4 +52,3 @@
   },
   "lessons_learned": "Injecting structural key data (like languages or contact details) directly into system contexts guarantees deterministic truth, while keeping semantic RAG strictly for project implementation logs yields the highest conversational coherence."
 }
-
