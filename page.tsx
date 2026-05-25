@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { useSafeBack } from "@/components/layout/NavigationProvider";
 import {
   Bot,
@@ -11,6 +12,8 @@ import {
   Sparkles,
   Cpu,
 } from "lucide-react";
+import { readStreamableValue } from "@ai-sdk/rsc";
+import { askYlyaBot } from "./actions";
 
 interface Message {
   id: string;
@@ -74,29 +77,6 @@ His primary contributions and engineering achievements at Equasens include:
   },
 ];
 
-async function readResponseStream(
-  response: Response,
-  onChunk: (accumulatedText: string, done: boolean) => void,
-) {
-  const reader = response.body?.getReader();
-  if (!reader)
-    throw new Error("No readable stream reader available on response");
-
-  const decoder = new TextDecoder();
-  let done = false;
-  let accumulatedText = "";
-
-  while (!done) {
-    const { value, done: doneReading } = await reader.read();
-    done = doneReading;
-    if (value) {
-      const chunk = decoder.decode(value, { stream: !done });
-      accumulatedText += chunk;
-      onChunk(accumulatedText, done);
-    }
-  }
-}
-
 export default function YlyaBotPage() {
   const safeBack = useSafeBack();
   const [messages, setMessages] = useState<Message[]>([
@@ -151,14 +131,7 @@ export default function YlyaBotPage() {
           content: m.text,
         }));
 
-      const response = await fetch("/ylya-bot/api", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages }),
-      });
-
-      if (!response.ok)
-        throw new Error(`HTTP network error: status ${response.status}`);
+      const { output } = await askYlyaBot({ messages: apiMessages });
 
       setIsTyping(false);
 
@@ -170,26 +143,41 @@ export default function YlyaBotPage() {
         { id: newBotMessageId, sender: "bot", text: "", isStreaming: true },
       ]);
 
-      await readResponseStream(response, (accumulatedText, isStreamDone) => {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === newBotMessageId
-              ? { ...msg, text: accumulatedText, isStreaming: !isStreamDone }
-              : msg,
-          ),
-        );
-      });
+      for await (const delta of readStreamableValue(output)) {
+        if (delta !== undefined)
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === newBotMessageId
+                ? { ...msg, text: (msg.text || "") + delta }
+                : msg,
+            ),
+          );
+      }
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === newBotMessageId ? { ...msg, isStreaming: false } : msg,
+        ),
+      );
     } catch (error) {
       console.error("🔴 Connection to YlyaBot Intelligence failed:", error);
       setIsTyping(false);
 
       messageIdCounter.current += 1;
+      const isRateLimit =
+        error instanceof Error &&
+        (error.message.includes("TOO_MANY_REQUESTS") ||
+          error.message.toLowerCase().includes("too many requests") ||
+          error.message.includes("slow down"));
+
       setMessages((prev) => [
         ...prev,
         {
           id: `bot-err-${messageIdCounter.current}`,
           sender: "bot",
-          text: "⚠️ I'm sorry, I'm having trouble connecting to my central matrix intelligence channel right now. Please try again, or reach out directly to Ylya at ylyamartchenko@gmail.com.",
+          text: isRateLimit
+            ? "⚠️ Rate limit exceeded. Please wait a minute before sending another message (max 10 messages/min)."
+            : "⚠️ I'm sorry, I'm having trouble connecting to my central matrix intelligence channel right now. Please try again, or reach out directly to Ylya at ylyamartchenko@gmail.com.",
         },
       ]);
     }
@@ -230,66 +218,124 @@ export default function YlyaBotPage() {
     let cursor = 0;
     const elements: React.ReactNode[] = [];
 
+    const parseLink = (text: string, startIdx: number) => {
+      const endLabelIdx = text.indexOf("]", startIdx + 1);
+      if (endLabelIdx !== -1 && text[endLabelIdx + 1] === "(") {
+        const endUrlIdx = text.indexOf(")", endLabelIdx + 2);
+        if (endUrlIdx !== -1)
+          return {
+            label: text.substring(startIdx + 1, endLabelIdx),
+            url: text.substring(endLabelIdx + 2, endUrlIdx),
+            endIdx: endUrlIdx + 1,
+          };
+      }
+      return null;
+    };
+
     while (cursor < lineText.length) {
       const boldIdx = lineText.indexOf("**", cursor);
       const codeIdx = lineText.indexOf("`", cursor);
 
-      let nextSpecialIdx = -1;
-      let type: "bold" | "code" | "text" = "text";
+      let nextLinkIdx = -1;
+      let linkDetails: { label: string; url: string; endIdx: number } | null =
+        null;
 
-      if (boldIdx !== -1 && (codeIdx === -1 || boldIdx < codeIdx)) {
-        nextSpecialIdx = boldIdx;
-        type = "bold";
-      } else if (codeIdx !== -1) {
-        nextSpecialIdx = codeIdx;
-        type = "code";
+      let currentLinkIdx = cursor;
+      while (true) {
+        const foundLinkIdx = lineText.indexOf("[", currentLinkIdx);
+        if (foundLinkIdx === -1) break;
+        const details = parseLink(lineText, foundLinkIdx);
+        if (details) {
+          linkDetails = details;
+          nextLinkIdx = foundLinkIdx;
+          break;
+        }
+        currentLinkIdx = foundLinkIdx + 1;
       }
 
-      if (nextSpecialIdx === -1) {
+      let winIdx = -1;
+      let winType: "bold" | "code" | "link" | "text" = "text";
+
+      if (boldIdx !== -1) {
+        winIdx = boldIdx;
+        winType = "bold";
+      }
+      if (codeIdx !== -1 && (winIdx === -1 || codeIdx < winIdx)) {
+        winIdx = codeIdx;
+        winType = "code";
+      }
+      if (nextLinkIdx !== -1 && (winIdx === -1 || nextLinkIdx < winIdx)) {
+        winIdx = nextLinkIdx;
+        winType = "link";
+      }
+
+      if (winIdx === -1) {
         elements.push(<span key={cursor}>{lineText.substring(cursor)}</span>);
         break;
       }
 
-      if (nextSpecialIdx > cursor)
+      if (winIdx > cursor) {
         elements.push(
-          <span key={cursor}>
-            {lineText.substring(cursor, nextSpecialIdx)}
-          </span>,
+          <span key={cursor}>{lineText.substring(cursor, winIdx)}</span>,
         );
+      }
 
-      if (type === "bold") {
-        const endBoldIdx = lineText.indexOf("**", nextSpecialIdx + 2);
+      if (winType === "bold") {
+        const endBoldIdx = lineText.indexOf("**", winIdx + 2);
         if (endBoldIdx !== -1) {
           elements.push(
-            <strong
-              key={nextSpecialIdx}
-              className="font-semibold text-apple-orange"
-            >
-              {lineText.substring(nextSpecialIdx + 2, endBoldIdx)}
+            <strong key={winIdx} className="font-semibold text-apple-orange">
+              {lineText.substring(winIdx + 2, endBoldIdx)}
             </strong>,
           );
           cursor = endBoldIdx + 2;
         } else {
-          elements.push(<span key={nextSpecialIdx}>**</span>);
-          cursor = nextSpecialIdx + 2;
+          elements.push(<span key={winIdx}>**</span>);
+          cursor = winIdx + 2;
         }
-      } else {
-        const endCodeIdx = lineText.indexOf("`", nextSpecialIdx + 1);
+      } else if (winType === "code") {
+        const endCodeIdx = lineText.indexOf("`", winIdx + 1);
         if (endCodeIdx !== -1) {
           elements.push(
             <code
-              key={nextSpecialIdx}
+              key={winIdx}
               className="px-1.5 py-0.5 rounded bg-muted/95 border border-border text-apple-blue font-mono text-xs md:text-sm"
             >
-              {lineText.substring(nextSpecialIdx + 1, endCodeIdx)}
+              {lineText.substring(winIdx + 1, endCodeIdx)}
             </code>,
           );
           cursor = endCodeIdx + 1;
         } else {
-          elements.push(<span key={nextSpecialIdx}>`</span>);
-          cursor = nextSpecialIdx + 1;
+          elements.push(<span key={winIdx}>`</span>);
+          cursor = winIdx + 1;
         }
-      }
+      } else if (winType === "link" && linkDetails) {
+        const { label, url, endIdx } = linkDetails;
+        const isInternal = url.startsWith("/");
+        if (isInternal)
+          elements.push(
+            <Link
+              href={url}
+              key={winIdx}
+              className="underline text-apple-blue hover:text-apple-blue/85 transition-colors font-medium"
+            >
+              {label}
+            </Link>,
+          );
+        else
+          elements.push(
+            <a
+              href={url}
+              key={winIdx}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline text-apple-blue hover:text-apple-blue/85 transition-colors font-medium inline-flex items-center gap-0.5"
+            >
+              {label}
+            </a>,
+          );
+        cursor = endIdx;
+      } else cursor = winIdx + 1;
     }
 
     return elements;

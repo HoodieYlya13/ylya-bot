@@ -1,8 +1,12 @@
-import { streamText } from "ai";
+"use server";
+
+import { streamText, type ModelMessage } from "ai";
+import { createStreamableValue } from "@ai-sdk/rsc";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
 import { getFullProfile } from "@/lib/github";
+import { z } from "zod";
+import { checkRateLimit } from "@/lib/ratelimit";
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -28,58 +32,77 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!,
 );
 
-export async function POST(req: Request) {
-  try {
-    const { messages } = await req.json();
-    const latestMessage = messages[messages.length - 1].content;
+const messageSchema = z.object({
+  role: z.enum(["user", "assistant", "system", "tool"]),
+  content: z.string(),
+});
 
-    const embeddingUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=${process.env.GEMINI_API_KEY}`;
+const askYlyaBotInputSchema = z.object({
+  messages: z.array(messageSchema),
+});
 
-    const [profileData, embeddingRes] = await Promise.all([
-      getFullProfile(),
-      fetch(embeddingUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: { parts: [{ text: latestMessage }] },
-          outputDimensionality: 768,
-        }),
+export async function askYlyaBot(input: {
+  messages: Array<{
+    role: "user" | "assistant" | "system" | "tool";
+    content: string;
+  }>;
+}) {
+  const validated = askYlyaBotInputSchema.safeParse(input);
+  if (!validated.success) throw new Error("Invalid request payload");
+
+  await checkRateLimit("chatbot");
+
+  const { messages } = validated.data;
+  const latestMessage = messages[messages.length - 1].content;
+
+  const embeddingUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=${process.env.GEMINI_API_KEY}`;
+
+  const [profileData, embeddingRes] = await Promise.all([
+    getFullProfile(),
+    fetch(embeddingUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content: { parts: [{ text: latestMessage }] },
+        outputDimensionality: 768,
       }),
-    ]);
+    }),
+  ]);
 
-    if (!embeddingRes.ok)
-      throw new Error(
-        `Gemini Embedding API network error: ${embeddingRes.statusText}`,
-      );
-
-    const embeddingData = await embeddingRes.json();
-    const queryEmbedding = embeddingData.embedding.values;
-
-    const { data: matchedChunks, error: dbError } = await supabase.rpc(
-      "match_portfolio_embeddings",
-      {
-        query_embedding: queryEmbedding,
-        match_threshold: 0.25,
-        match_count: 4,
-      },
+  if (!embeddingRes.ok) {
+    throw new Error(
+      `Gemini Embedding API network error: ${embeddingRes.statusText}`,
     );
+  }
 
-    if (dbError) throw dbError;
+  const embeddingData = await embeddingRes.json();
+  const queryEmbedding = embeddingData.embedding.values;
 
-    const typedChunks = matchedChunks as SupabaseVectorChunk[];
+  const { data: matchedChunks, error: dbError } = await supabase.rpc(
+    "match_portfolio_embeddings",
+    {
+      query_embedding: queryEmbedding,
+      match_threshold: 0.25,
+      match_count: 4,
+    },
+  );
 
-    const contextString =
-      typedChunks && typedChunks.length > 0
-        ? typedChunks
-            .map(
-              (chunk) =>
-                `[Project Code: ${chunk.project_name} | ID: ${chunk.project_id}]\n${chunk.content}`,
-            )
-            .join("\n\n")
-        : "No specific engineering repository logs found matching this concept.";
+  if (dbError) throw dbError;
 
-    const profileContextStr = profileData
-      ? `
+  const typedChunks = matchedChunks as SupabaseVectorChunk[];
+
+  const contextString =
+    typedChunks && typedChunks.length > 0
+      ? typedChunks
+          .map(
+            (chunk) =>
+              `[Project Code: ${chunk.project_name} | ID: ${chunk.project_id}]\n${chunk.content}`,
+          )
+          .join("\n\n")
+      : "No specific engineering repository logs found matching this concept.";
+
+  const profileContextStr = profileData
+    ? `
 ### Identity & Status
 - **Full Name:** ${profileData.identity.full_name}
 - **Current Position:** ${profileData.identity.current_status}
@@ -119,9 +142,9 @@ ${profileData.timeline_foundational.map((item) => `- **${item.role}** at ${item.
 ### Academic & Technical Education
 ${profileData.academic_history.map((edu) => `- **${edu.degree}** - ${edu.institution} (${edu.location}) [${edu.range}]:\n  * ${edu.summary}`).join("\n")}
 `
-      : "Dynamic profile metrics currently unavailable.";
+    : "Dynamic profile metrics currently unavailable.";
 
-    const systemPrompt = `
+  const systemPrompt = `
 You are YlyaBot, the interactive AI clone of Ylya Martchenko. You are engaging with technical recruiters, hiring managers, CTOs, and developers who are evaluating Ylya's professional profile, engineering depth, and project work.
 
 YOUR VOICE & PERSONALITY:
@@ -131,7 +154,7 @@ YOUR VOICE & PERSONALITY:
 
 YOUR RULES OF ENGAGEMENT:
 1. Rely entirely on the DYNAMIC PROFILE MATRIX and DYNAMIC PORTFOLIO MATRIX provided below to answer questions about Ylya's work history, skills, contact channels, and codebases.
-2. **Contact & Resume Requests**: If asked for Ylya's resume, LinkedIn, GitHub, email, or phone number, retrieve the exact values from the DYNAMIC PROFILE MATRIX (e.g., downloadable resume link is "${profileData?.communication.links.downloadable_resume || 'https://www.hy13dev.com/Resume_Ylya_Martchenko.pdf'}") and present them clearly as professional hyperlinks.
+2. **Contact & Resume Requests**: If asked for Ylya's resume, LinkedIn, GitHub, email, or phone number, retrieve the exact values from the DYNAMIC PROFILE MATRIX (e.g., downloadable resume link is "${profileData?.communication.links.downloadable_resume || "https://www.hy13dev.com/Resume_Ylya_Martchenko.pdf"}") and present them clearly as professional hyperlinks.
 3. **CRITICAL ROUTING BOUNDARY**: Never output absolute external production web links (e.g., do not write out raw .com domains or full GitHub repo URLs) when discussing individual projects. Instead, check the project's ID parameter (e.g., 'honey-pot', 'teslimitless', or 'codemafia') and output a clean internal redirection router link exactly like this: "[View Code and Insights](/projects/repo_name)" (e.g. "[View Code and Insights](/projects/teslimitless)").
 4. **Relocation & Work Style**: If asked about relocation, target regions, or preferred work style, reference the placements matrix (e.g. Luxembourg, Switzerland, North America; Remote/Hybrid).
 5. If an implementation detail is not present in the matrices, say: "I don't have explicit repository execution records on that mechanism yet, but you can sync directly with Ylya at ylyamartchenko@gmail.com or [Or contact me here](/contact)."
@@ -143,18 +166,25 @@ DYNAMIC PORTFOLIO MATRIX (GROUND TRUTH CODING CHUNKS):
 ${contextString}
 `;
 
-    const responseStream = await streamText({
-      model: google("gemini-2.5-flash"),
-      system: systemPrompt,
-      messages: messages,
-    });
+  const stream = createStreamableValue("");
 
-    return responseStream.toTextStreamResponse();
-  } catch (error) {
-    console.error("🔴 Critical Serverless Route Exception:", error);
-    return new NextResponse(
-      JSON.stringify({ error: "Internal Route Processor Crash" }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
-    );
-  }
+  (async () => {
+    try {
+      const { textStream } = streamText({
+        model: google("gemini-2.5-flash"),
+        system: systemPrompt,
+        messages: messages as unknown as ModelMessage[],
+      });
+
+      for await (const textDelta of textStream) {
+        stream.update(textDelta);
+      }
+      stream.done();
+    } catch (err) {
+      console.error("🔴 Stream generation error:", err);
+      stream.error(err);
+    }
+  })();
+
+  return { output: stream.value };
 }

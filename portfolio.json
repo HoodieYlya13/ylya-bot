@@ -25,11 +25,11 @@
     "Integrated Google's unified @google/genai SDK to execute stateless context grounding, processing user prompts against real-time data frameworks with zero local model overhead.",
     "Designed a high-performance vector matching function inside Supabase using PL/pgSQL, computing multi-dimensional cosine distance metrics natively on the database hardware layer.",
     "Engineered an automated event-driven vector pipeline triggered by GitHub Actions pushes, chunking and embedding repository updates with zero runtime server costs.",
-    "Built a mobile-first, high-fidelity chat dashboard utilizing the Vercel AI SDK, optimizing response times to under 150ms time-to-first-token using React Server Component streaming and client-side binary stream decoders."
+    "Built a mobile-first, high-fidelity chat dashboard utilizing the Vercel AI SDK, optimizing response times to under 150ms time-to-first-token using React Server Actions and modern streamable value client iterators."
   ],
   "measurable_metrics": {
     "execution_latency": "Under 150ms time-to-first-token token streaming; sub-10ms PostgreSQL vector retrieval execution speed.",
-    "ui_performance": "60 FPS responsive animations utilizing client-side stream reading buffers and strict layout containment supporting dynamic mobile height calculations (dvh).",
+    "ui_performance": "60 FPS responsive animations utilizing client-side stream reading hooks, rate-limiting guards, and strict layout containment supporting dynamic mobile height calculations (dvh).",
     "operational_cost": "$0/month. Operates entirely within Google AI Studio and Supabase free-tier thresholds, dropping system maintenance overhead to zero."
   },
   "star_challenges": [
@@ -47,7 +47,7 @@
     }
   ],
   "architectural_deep_dive": {
-    "text": "The engine matches input queries against vectorized segments of profile.json and individual repository records. High-fidelity embedding is achieved via gemini-embedding-2 compressed natively to 768 dimensions, which is stored and indexed in a Supabase PostgreSQL instance using pgvector. Recruiter chat events are processed by serverless API Routes, combining global profile specifications with relevant semantic snippets retrieved via our database RPC lookup hook.",
+    "text": "The engine matches input queries against vectorized segments of profile.json and individual repository records. High-fidelity embedding is achieved via gemini-embedding-2 compressed natively to 768 dimensions, stored and indexed in Supabase. Recruiter chat queries are processed by a typesafe React Server Action that validates inputs with Zod, checks Upstash Redis rate limits, retrieve context snippets via DB RPC, and streams Gemini tokens securely to the client.",
     "illustration": null
   },
   "lessons_learned": "Injecting structural key data (like languages or contact details) directly into system contexts guarantees deterministic truth, while keeping semantic RAG strictly for project implementation logs yields the highest conversational coherence."

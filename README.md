@@ -145,81 +145,68 @@ $$;
 
 ---
 
-## ⚡ Asynchronous Serverless Streaming Router
+## ⚡ High-Performance React Server Action
 
-The backend uses a parallel data architecture. When an interface request hits `api/route.ts`, the router dispatches concurrent asynchronous promises via `Promise.all` to fetch the global profile SSoT data and generate query vector coordinates simultaneously, significantly lowering time-to-first-byte (TTFB).
+The backend uses a parallel data architecture encapsulated entirely within a modern Next.js 16 Server Action. When invoked, it dispatches concurrent asynchronous promises via `Promise.all` to fetch the global profile SSoT data and generate query vector coordinates simultaneously, significantly lowering time-to-first-byte (TTFB). To prevent abuse, it executes an Upstash Redis-backed sliding window rate limiter (max 10 messages/minute) identified by client cookies.
 
 ```typescript
-// app/ylya-bot/api/route.ts
+// app/ylya-bot/actions.ts
 import { streamText } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { getFullProfile } from "@/lib/github";
+import { createStreamableValue } from "@ai-sdk/rsc";
+import { checkRateLimit } from "@/lib/ratelimit";
 
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
-
-export async function POST(req: Request) {
-  const { messages } = await req.json();
-  const latestMessage = messages[messages.length - 1].content;
-  const embeddingUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=${process.env.GEMINI_API_KEY}`;
-
-  // Concurrent pipeline dispatching
+export async function askYlyaBot(input: { messages: Array<{ role: string; content: string }> }) {
+  await checkRateLimit("chatbot"); // Enforce Upstash sliding window rate limiting
+  
   const [profileData, embeddingRes] = await Promise.all([
     getFullProfile(),
-    fetch(embeddingUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        content: { parts: [{ text: latestMessage }] },
-        outputDimensionality: 768,
-      }),
-    }),
+    fetch(embeddingUrl, { /* ... generative embedding body ... */ })
   ]);
+  
+  const stream = createStreamableValue("");
+  
+  (async () => {
+    try {
+      const { textStream } = streamText({
+        model: google("gemini-2.5-flash"),
+        system: systemPrompt,
+        messages: messages as any,
+      });
 
-  const embeddingData = await embeddingRes.json();
-  const queryEmbedding = embeddingData.embedding.values;
+      for await (const textDelta of textStream) {
+        stream.update(textDelta);
+      }
+      stream.done();
+    } catch (err) {
+      stream.error(err);
+    }
+  })();
 
-  // Vector similarity execution
-  const { data: matchedChunks } = await supabase.rpc("match_portfolio_embeddings", {
-    query_embedding: queryEmbedding,
-    match_threshold: 0.25,
-    match_count: 4,
-  });
-
-  const responseStream = await streamText({
-    model: google("gemini-2.5-flash"),
-    system: constructSystemPrompt(profileData, matchedChunks),
-    messages,
-  });
-
-  return responseStream.toTextStreamResponse();
+  return { output: stream.value };
 }
 ```
 
 ---
 
-## 🛰️ Low-Level Client Stream Chunk Decoder
+## 🛰️ Typesafe Client-Side Stream Consumption
 
-Instead of adding bloated external state-tracking packages, the user interface uses a high-performance **Custom Binary Stream Reader** loop. It decodes bytes arriving from the server on-the-fly and runs an internal recursive tokenizer to match custom style design system typography tokens (`--apple-orange`, `--apple-blue`) cleanly.
+Instead of adding bloated external state-tracking packages or manual binary decoders, the user interface utilizes the Vercel AI SDK's `@ai-sdk/rsc` package to read the streamed tokens from the Server Action as a standard async iterator, updating message states on-the-fly.
 
 ```typescript
-// Custom reader loop inside user interface page component
-const reader = response.body?.getReader();
-const decoder = new TextDecoder();
-let done = false;
-let accumulatedText = "";
+// app/ylya-bot/page.tsx
+import { readStreamableValue } from "@ai-sdk/rsc";
+import { askYlyaBot } from "./actions";
 
-while (!done) {
-  const { value, done: doneReading } = await reader.read();
-  done = doneReading;
-  if (value) {
-    const chunk = decoder.decode(value, { stream: !done });
-    accumulatedText += chunk;
+// Client-side handler inside page component
+const { output } = await askYlyaBot({ messages: apiMessages });
 
+for await (const delta of readStreamableValue(output)) {
+  if (delta !== undefined) {
     setMessages((prev) =>
       prev.map((msg) =>
-        msg.id === newBotMessageId ? { ...msg, text: accumulatedText, isStreaming: !done } : msg
+        msg.id === newBotMessageId
+          ? { ...msg, text: (msg.text || "") + delta }
+          : msg
       )
     );
   }
