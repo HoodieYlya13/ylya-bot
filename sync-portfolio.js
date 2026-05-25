@@ -102,7 +102,7 @@ async function runPipeline() {
         },
       });
 
-      const embeddingValues = response.embedding.values;
+      const embeddingValues = response.embeddings[0].values;
 
       const { error } = await supabase.from("portfolio_embeddings").insert({
         project_id: projectId,
