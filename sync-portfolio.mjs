@@ -104,7 +104,7 @@ async function runPipeline() {
 
       const embeddingValues = response.embeddings[0].values;
 
-      const { error } = await supabase.from("portfolio_embeddings").insert({
+      const { error } = await supabase.from("portfolio_embeddings").upsert({
         project_id: projectId,
         project_name: projectName,
         chunk_index: i,
