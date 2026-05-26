@@ -656,7 +656,7 @@ export default function YlyaBotPage() {
               value={inputVal}
               onChange={(e) => setInputVal(e.target.value)}
               placeholder="Ask about Equasens milestones, Skills matrix, SSoT pipelines..."
-              className="w-full pl-11 pr-14 py-3.5 rounded-2xl bg-card/45 backdrop-blur-xl border border-border/70 hover:border-border focus:border-apple-orange/50 text-foreground placeholder-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-apple-orange/10 transition-all duration-300 shadow-sm"
+              className="w-full pl-11 pr-14 py-3.5 rounded-2xl bg-card/45 backdrop-blur-xl border border-border/70 hover:border-border focus:border-apple-orange/50 text-foreground placeholder-muted-foreground text-[1rem] md:text-sm focus:outline-none focus:ring-2 focus:ring-apple-orange/10 transition-all duration-300 shadow-sm"
             />
 
             <button
