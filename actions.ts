@@ -7,7 +7,8 @@ import { createClient } from "@supabase/supabase-js";
 import { getFullProfile } from "@/lib/github";
 import { z } from "zod";
 import { checkRateLimit } from "@/lib/ratelimit";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { Redis } from "@upstash/redis";
 
 import fs from "fs";
 import path from "path";
@@ -113,6 +114,8 @@ export async function askYlyaBot(input: {
     content: string;
   }>;
 }) {
+  const startTime = Date.now();
+
   const validated = askYlyaBotInputSchema.safeParse(input);
   if (!validated.success) throw new Error("Invalid request payload");
 
@@ -120,6 +123,19 @@ export async function askYlyaBot(input: {
 
   const { messages } = validated.data;
   const latestMessage = messages[messages.length - 1].content;
+
+  const headerStore = await headers();
+  const ip =
+    headerStore.get("x-real-ip") ||
+    headerStore.get("x-forwarded-for")?.split(",")[0] ||
+    "unknown";
+  const city = decodeURIComponent(headerStore.get("x-vercel-ip-city") || "");
+  const country = headerStore.get("x-vercel-ip-country") || "";
+  const region = headerStore.get("x-vercel-ip-country-region") || "";
+  const timezone = headerStore.get("x-vercel-ip-timezone") || "";
+  const postalCode = headerStore.get("x-vercel-ip-postal-code") || "";
+  const userAgent = headerStore.get("user-agent") || "";
+  const ja4 = headerStore.get("x-vercel-ja4-digest") || "";
 
   const apiKey =
     process.env.GEMINI_API_KEY ||
@@ -325,6 +341,8 @@ ${contextString}
 
   if (firstChunk) stream.update(firstChunk);
 
+  let fullResponseText = "";
+
   (async () => {
     try {
       while (true) {
@@ -332,9 +350,47 @@ ${contextString}
         if (done) break;
         if (value) {
           stream.update(value);
+          fullResponseText += value;
         }
       }
       stream.done();
+
+      const latencyMs = Date.now() - startTime;
+      
+      supabase.from("ylyabot_logs").insert({
+        user_query: latestMessage,
+        bot_response: fullResponseText,
+        model_used: successModel,
+        latency_ms: latencyMs,
+        user_ip: ip,
+        city,
+        country,
+        region,
+        timezone,
+        postal_code: postalCode,
+        user_agent: userAgent,
+        ja4_fingerprint: ja4
+      }).then(({ error }) => {
+        if (error) {
+          console.warn("⚠️ Failed to log ylya-bot interaction to Supabase:", error.message);
+        }
+      });
+
+      const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+      const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+      if (redisUrl && redisToken) {
+        const redis = new Redis({ url: redisUrl, token: redisToken });
+        const today = new Date().toISOString().split("T")[0];
+        Promise.all([
+          redis.incr("ylyabot:metrics:total_requests"),
+          redis.incr(`ylyabot:metrics:daily:${today}`),
+          redis.hincrby("ylyabot:metrics:models", successModel, 1),
+          country ? redis.hincrby("ylyabot:metrics:countries", country, 1) : Promise.resolve(),
+        ]).catch((redisErr) => {
+          console.warn("⚠️ Failed to increment Redis aggregate metrics:", redisErr);
+        });
+      }
+
     } catch (err) {
       console.error("🔴 Background streaming reader loop failed:", err);
       stream.done();
