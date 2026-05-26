@@ -213,7 +213,8 @@ export default function YlyaBotPage() {
         const found = lineText.indexOf("*", startSearch);
         if (found === -1) break;
         const isBoldLeft = found > 0 && lineText[found - 1] === "*";
-        const isBoldRight = found + 1 < lineText.length && lineText[found + 1] === "*";
+        const isBoldRight =
+          found + 1 < lineText.length && lineText[found + 1] === "*";
         if (!isBoldLeft && !isBoldRight) {
           italicIdx = found;
           break;
@@ -289,7 +290,8 @@ export default function YlyaBotPage() {
           const found = lineText.indexOf("*", startSearchEnd);
           if (found === -1) break;
           const isBoldLeft = found > 0 && lineText[found - 1] === "*";
-          const isBoldRight = found + 1 < lineText.length && lineText[found + 1] === "*";
+          const isBoldRight =
+            found + 1 < lineText.length && lineText[found + 1] === "*";
           if (!isBoldLeft && !isBoldRight) {
             endItalicIdx = found;
             break;
@@ -363,10 +365,7 @@ export default function YlyaBotPage() {
 
       if (trimmed === "***" || trimmed === "---" || trimmed === "___")
         return (
-          <hr
-            key={idx}
-            className="my-5 border-t border-border/40 w-full"
-          />
+          <hr key={idx} className="my-5 border-t border-border/40 w-full" />
         );
 
       if (trimmed.startsWith("###### "))
@@ -450,7 +449,7 @@ export default function YlyaBotPage() {
   };
 
   return (
-    <section className="relative h-screen h-dvh w-full flex flex-col bg-background overflow-hidden z-10 font-sans">
+    <section className="relative h-screen h-svh w-full flex flex-col bg-background overflow-hidden z-10 font-sans">
       <div className="absolute top-[-10%] left-[-15%] w-[60%] h-[50%] rounded-full bg-apple-orange/8 dark:bg-apple-orange/5 blur-[120px] pointer-events-none animate-pulse duration-[6000ms]" />
       <div className="absolute bottom-[-10%] right-[-15%] w-[60%] h-[50%] rounded-full bg-apple-blue/6 dark:bg-apple-blue/4 blur-[130px] pointer-events-none animate-pulse duration-[8000ms]" />
       <div className="absolute top-[25%] right-[10%] w-[35%] h-[35%] rounded-full bg-apple-yellow/4 dark:bg-apple-yellow/2 blur-[100px] pointer-events-none" />
