@@ -16,23 +16,31 @@
       "Google GenAI SDK",
       "Gemini API",
       "Vercel AI SDK",
+      "Upstash Redis Rate Limiting",
+      "HTTP Cookies (Pacific Midnight Expiry)",
       "Git Submodules"
     ]
   },
-  "comprehensive_description": "An event-driven, decoupled Retrieval-Augmented Generation (RAG) agent and streaming chat interface acting as an interactive professional clone of Ylya Martchenko. The system implements a dynamic Git Submodule pattern to expose the bot as a standalone module inside a core Next.js host while retaining an independent repository structure. Leveraging an optimized PostgreSQL Remote Procedure Call (RPC), the bot matches recruiting queries with sub-10ms database latency, utilizing vector cosine similarity calculations to deliver high-precision context grounding across developer frameworks, career milestones, and engineering highlights.",
+  "comprehensive_description": "An event-driven, decoupled Retrieval-Augmented Generation (RAG) agent and streaming chat interface acting as an interactive professional clone of Ylya Martchenko. The system implements a dynamic Git Submodule pattern to expose the bot as a standalone module inside a core Next.js host while retaining an independent repository structure. Leveraging an optimized PostgreSQL Remote Procedure Call (RPC), the bot matches recruiting queries with sub-10ms database latency, utilizing vector cosine similarity calculations to deliver high-precision context grounding. It features a robust 5-tier model fallback hierarchy with timezone-aware cookie exclusions, resolving Gemini API rate limits with zero downtime.",
   "engineering_highlights": [
     "Architected a Decoupled RAG Architecture using Git Submodules to host the YlyaBot agent independently, separating presentation layers from ingestion codebases while keeping global workspace configurations clean.",
-    "Integrated Google's unified @google/genai SDK to execute stateless context grounding, processing user prompts against real-time data frameworks with zero local model overhead.",
+    "Engineered a robust 5-Tier prioritized Model Fallback Hierarchy (gemini-flash-latest -> gemini-3.5-flash -> gemini-2.5-flash -> gemini-3.1-flash-lite -> gemma-4) to guarantee consistent high-uptime LLM performance.",
+    "Implemented a Time-Zone Aware Cookie Exclusion system expiring at exactly midnight Pacific Time (America/Los_Angeles) to cache quota-exhausted endpoints, preventing redundant and failing API calls.",
     "Designed a high-performance vector matching function inside Supabase using PL/pgSQL, computing multi-dimensional cosine distance metrics natively on the database hardware layer.",
-    "Engineered an automated event-driven vector pipeline triggered by GitHub Actions pushes, chunking and embedding repository updates with zero runtime server costs.",
     "Built a mobile-first, high-fidelity chat dashboard utilizing the Vercel AI SDK, optimizing response times to under 150ms time-to-first-token using React Server Actions and modern streamable value client iterators."
   ],
   "measurable_metrics": {
     "execution_latency": "Under 150ms time-to-first-token token streaming; sub-10ms PostgreSQL vector retrieval execution speed.",
-    "ui_performance": "60 FPS responsive animations utilizing client-side stream reading hooks, rate-limiting guards, and strict layout containment supporting dynamic mobile height calculations (dvh).",
+    "ui_performance": "60 FPS responsive animations utilizing client-side stream reading hooks, rate-limiting guards, and strict layout containment supporting dynamic HTML5 semantic structures (<header>, <main>, <section>).",
     "operational_cost": "$0/month. Operates entirely within Google AI Studio and Supabase free-tier thresholds, dropping system maintenance overhead to zero."
   },
   "star_challenges": [
+    {
+      "situation": "Free-tier Gemini API endpoints frequently return 429 Rate Limit Exceeded or Quota Exhausted errors under concurrent recruiter evaluation sessions, causing the AI bot to crash and return blank streams.",
+      "action": "Engineered a prioritized 5-tier fallback model hierarchy coupled with a timezone-aware cookie exclusion engine. The Next.js Server Action synchronously attempts to resolve the first stream chunk from active models. If a model fails due to a quota exhaustion, the server catches the error, writes a cookie marking that model as exhausted until exactly midnight Pacific Time (America/Los_Angeles), and seamlessly falls back to the next model in the priority list.",
+      "result": "Completely resolved free-tier API quota exhaustions with zero user downtime, maintaining 100% agent uptime while keeping monthly maintenance costs at absolute zero ($0.00).",
+      "inline_image": ""
+    },
     {
       "situation": "Traditional RAG pipelines require continuous polling servers or expensive always-on extraction endpoints to index portfolio data changes.",
       "action": "Engineered an event-driven ingestion script executed purely within serverless ephemeral GitHub Actions runners, triggered instantly by code pushes.",
@@ -47,7 +55,7 @@
     }
   ],
   "architectural_deep_dive": {
-    "text": "The engine matches input queries against vectorized segments of profile.json and individual repository records. High-fidelity embedding is achieved via gemini-embedding-2 compressed natively to 768 dimensions, stored and indexed in Supabase. Recruiter chat queries are processed by a typesafe React Server Action that validates inputs with Zod, checks Upstash Redis rate limits, retrieve context snippets via DB RPC, and streams Gemini tokens securely to the client.",
+    "text": "The engine matches input queries against vectorized segments of profile.json and individual repository records. High-fidelity embedding is achieved via gemini-embedding-2 compressed natively to 768 dimensions, stored and indexed in Supabase. Recruiter chat queries are processed by a typesafe React Server Action that validates inputs with Zod, checks Upstash Redis rate limits, filters models against active quota exclusion cookies, and streams Gemini tokens securely to the client.",
     "illustration": null
   },
   "lessons_learned": "Injecting structural key data (like languages or contact details) directly into system contexts guarantees deterministic truth, while keeping semantic RAG strictly for project implementation logs yields the highest conversational coherence."

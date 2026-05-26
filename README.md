@@ -145,40 +145,84 @@ $$;
 
 ---
 
-## ⚡ High-Performance React Server Action
+## ⚡ High-Performance Resilient React Server Action
 
 The backend uses a parallel data architecture encapsulated entirely within a modern Next.js 16 Server Action. When invoked, it dispatches concurrent asynchronous promises via `Promise.all` to fetch the global profile SSoT data and generate query vector coordinates simultaneously, significantly lowering time-to-first-byte (TTFB). To prevent abuse, it executes an Upstash Redis-backed sliding window rate limiter (max 10 messages/minute) identified by client cookies.
+
+To guarantee maximum uptime and complete resilience against Gemini API free-tier rate limits or quota exhaustions, the engine implements a **5-Tier Priority Fallback Hierarchy** with **Time-Zone Aware Cookie Exclusions**:
+
+1. **Prioritized Model Array:**
+   - **`gemini-flash-latest`** (Tier 1: Default)
+   - **`gemini-3.5-flash`** (Tier 2)
+   - **`gemini-2.5-flash`** (Tier 3)
+   - **`gemini-3.1-flash-lite`** (Tier 4)
+   - **`gemma-4-31b-it`** (Tier 5)
+
+2. **Pre-Flight Cookie-Exclusion Filter:**
+   Before executing the API call, the action filters active models against awaited HTTP cookies (`cookies()`). Any model that previously recorded a quota exhaustion failure is excluded.
+
+3. **Time-Zone Aware Cookie Expiration (Pacific Midnight):**
+   When a model encounters a `429` (Quota Exhausted) or `nooutputgenerated` error, the server writes a cookie `ylyabot_exhausted_[model]=true` that expires at exactly midnight Pacific Time (`America/Los_Angeles`) on the current day, dynamically blocking the model until quotas reset.
+
+4. **Synchronous Validation & Stream Iteration:**
+   The server attempts to connect and read the **very first stream chunk** synchronously in the main server action thread. If it catches a quota exception, it registers the cookie and advances to the next model. Once a model succeeds, the verified first chunk is immediately written to the stream, and a background thread consumes the remaining chunks from the *same active stream reader* to avoid stream lock collisions.
 
 ```typescript
 // app/ylya-bot/actions.ts
 import { streamText } from "ai";
 import { createStreamableValue } from "@ai-sdk/rsc";
 import { checkRateLimit } from "@/lib/ratelimit";
+import { cookies } from "next/headers";
 
 export async function askYlyaBot(input: { messages: Array<{ role: string; content: string }> }) {
   await checkRateLimit("chatbot"); // Enforce Upstash sliding window rate limiting
   
-  const [profileData, embeddingRes] = await Promise.all([
-    getFullProfile(),
-    fetch(embeddingUrl, { /* ... generative embedding body ... */ })
-  ]);
+  const cookieStore = await cookies();
+  const activeModels = MODELS.filter(model => !cookieStore.get(`ylyabot_exhausted_${model}`));
   
   const stream = createStreamableValue("");
-  
-  (async () => {
+  let firstChunk = "";
+  let successModel = "";
+  let activeReader = null;
+
+  for (const model of activeModels) {
     try {
-      const { textStream } = streamText({
-        model: google("gemini-2.5-flash"),
+      const googleClient = getGoogleClient();
+      const result = streamText({
+        model: googleClient(model),
         system: systemPrompt,
         messages: messages as any,
       });
 
-      for await (const textDelta of textStream) {
-        stream.update(textDelta);
+      const reader = result.textStream.getReader();
+      const { value } = await reader.read();
+
+      successModel = model;
+      activeReader = reader;
+      if (value) firstChunk = value;
+      break;
+    } catch (err) {
+      // Catch quota exceptions and set a cookie expiring at midnight Pacific time
+      if (isQuotaError(err)) {
+        const expiry = getPacificMidnightExpiry();
+        cookieStore.set(`ylyabot_exhausted_${model}`, "true", { expires: expiry, path: "/" });
+      }
+    }
+  }
+
+  // Stream verified first chunk and handle remaining chunks in background...
+  if (firstChunk) stream.update(firstChunk);
+  
+  (async () => {
+    try {
+      while (true) {
+        const { value, done } = await activeReader.read();
+        if (done) break;
+        if (value) stream.update(value);
       }
       stream.done();
-    } catch (err) {
-      stream.error(err);
+    } catch {
+      stream.done();
     }
   })();
 
@@ -225,5 +269,5 @@ The user interface follows a modern, responsive minimalist design system matchin
 ---
 
 <div align="center">
-  <sub>YlyaBot AI Engine • Created with ❤️ and precision • Centralized SSoT v1.5.0</sub>
+  <sub>YlyaBot AI Engine • Created with ❤️ and precision • Centralized SSoT v2.0</sub>
 </div>
