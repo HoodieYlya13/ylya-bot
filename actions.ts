@@ -7,9 +7,64 @@ import { createClient } from "@supabase/supabase-js";
 import { getFullProfile } from "@/lib/github";
 import { z } from "zod";
 import { checkRateLimit } from "@/lib/ratelimit";
+import { cookies } from "next/headers";
 
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY,
+import fs from "fs";
+import path from "path";
+
+function getGoogleClient() {
+  let apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    try {
+      const envPath = path.join(process.cwd(), ".env.local");
+      if (fs.existsSync(envPath)) {
+        const envContent = fs.readFileSync(envPath, "utf8");
+        const match = envContent.match(/GEMINI_API_KEY="?([^"\n\s]+)"?/);
+        if (match && match[1]) {
+          apiKey = match[1];
+        }
+      }
+    } catch {
+      // Ignore fallback failures
+    }
+  }
+  return createGoogleGenerativeAI({
+    apiKey: apiKey || "",
+  });
+}
+
+const MODELS = [
+  "gemini-flash-latest",
+  "gemini-3.5-flash",
+  "gemini-2.5-flash",
+  "gemini-3.1-flash-lite",
+  "gemma-4-31b-it",
+];
+
+function getPacificMidnightExpiry(): Date {
+  const now = new Date();
+  const pacificStr = now.toLocaleString("en-US", {
+    timeZone: "America/Los_Angeles",
+  });
+  const pacificDate = new Date(pacificStr);
+  const midnightPacific = new Date(pacificStr);
+  midnightPacific.setHours(24, 0, 0, 0);
+  const diffMs = midnightPacific.getTime() - pacificDate.getTime();
+  return new Date(now.getTime() + diffMs);
+}
+
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!,
+);
+
+const messageSchema = z.object({
+  role: z.enum(["user", "assistant", "system", "tool"]),
+  content: z.string(),
+});
+
+const askYlyaBotInputSchema = z.object({
+  messages: z.array(messageSchema),
 });
 
 interface SupabaseVectorChunk {
@@ -27,19 +82,30 @@ interface SupabaseVectorChunk {
   similarity: number;
 }
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!,
-);
+function extractErrorMessage(err: unknown): string {
+  if (!err) return "";
+  let details = "";
+  try {
+    details += " " + JSON.stringify(err);
+  } catch {}
+  if (typeof err === "object") {
+    const record = err as Record<string, unknown>;
+    if ("message" in record && typeof record.message === "string")
+      details += " " + record.message;
 
-const messageSchema = z.object({
-  role: z.enum(["user", "assistant", "system", "tool"]),
-  content: z.string(),
-});
-
-const askYlyaBotInputSchema = z.object({
-  messages: z.array(messageSchema),
-});
+    if ("errors" in record && Array.isArray(record.errors))
+      for (const e of record.errors)
+        if (
+          e &&
+          typeof e === "object" &&
+          "message" in e &&
+          typeof (e as Record<string, unknown>).message === "string"
+        )
+          details += " " + (e as Record<string, unknown>).message;
+        else details += " " + String(e);
+  }
+  return (details + " " + String(err)).toLowerCase();
+}
 
 export async function askYlyaBot(input: {
   messages: Array<{
@@ -55,51 +121,73 @@ export async function askYlyaBot(input: {
   const { messages } = validated.data;
   const latestMessage = messages[messages.length - 1].content;
 
-  const embeddingUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=${process.env.GEMINI_API_KEY}`;
+  const apiKey =
+    process.env.GEMINI_API_KEY ||
+    (() => {
+      try {
+        const envPath = path.join(process.cwd(), ".env.local");
+        if (fs.existsSync(envPath)) {
+          const envContent = fs.readFileSync(envPath, "utf8");
+          const match = envContent.match(/GEMINI_API_KEY="?([^"\n\s]+)"?/);
+          if (match && match[1]) return match[1];
+        }
+      } catch {}
+      return "";
+    })();
 
-  const [profileData, embeddingRes] = await Promise.all([
-    getFullProfile(),
-    fetch(embeddingUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        content: { parts: [{ text: latestMessage }] },
-        outputDimensionality: 768,
+  const embeddingUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=${apiKey}`;
+
+  let profileData = null;
+  let contextString =
+    "No specific engineering repository logs found matching this concept.";
+
+  try {
+    const [profile, embeddingRes] = await Promise.all([
+      getFullProfile(),
+      fetch(embeddingUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: { parts: [{ text: latestMessage }] },
+          outputDimensionality: 768,
+        }),
+      }).catch((err) => {
+        console.warn("⚠️ Embedding network query failed:", err);
+        return null;
       }),
-    }),
-  ]);
+    ]);
 
-  if (!embeddingRes.ok) {
-    throw new Error(
-      `Gemini Embedding API network error: ${embeddingRes.statusText}`,
-    );
-  }
+    profileData = profile;
 
-  const embeddingData = await embeddingRes.json();
-  const queryEmbedding = embeddingData.embedding.values;
+    if (embeddingRes && embeddingRes.ok) {
+      const embeddingData = await embeddingRes.json();
+      const queryEmbedding = embeddingData.embedding.values;
 
-  const { data: matchedChunks, error: dbError } = await supabase.rpc(
-    "match_portfolio_embeddings",
-    {
-      query_embedding: queryEmbedding,
-      match_threshold: 0.25,
-      match_count: 4,
-    },
-  );
+      const { data: matchedChunks, error: dbError } = await supabase.rpc(
+        "match_portfolio_embeddings",
+        {
+          query_embedding: queryEmbedding,
+          match_threshold: 0.25,
+          match_count: 4,
+        },
+      );
 
-  if (dbError) throw dbError;
-
-  const typedChunks = matchedChunks as SupabaseVectorChunk[];
-
-  const contextString =
-    typedChunks && typedChunks.length > 0
-      ? typedChunks
+      if (!dbError && matchedChunks && matchedChunks.length > 0) {
+        const typedChunks = matchedChunks as SupabaseVectorChunk[];
+        contextString = typedChunks
           .map(
             (chunk) =>
               `[Project Code: ${chunk.project_name} | ID: ${chunk.project_id}]\n${chunk.content}`,
           )
-          .join("\n\n")
-      : "No specific engineering repository logs found matching this concept.";
+          .join("\n\n");
+      }
+    }
+  } catch (dataErr) {
+    console.warn(
+      "⚠️ Data pre-fetching caught expected error, continuing cleanly:",
+      dataErr,
+    );
+  }
 
   const profileContextStr = profileData
     ? `
@@ -154,7 +242,7 @@ YOUR VOICE & PERSONALITY:
 
 YOUR RULES OF ENGAGEMENT:
 1. Rely entirely on the DYNAMIC PROFILE MATRIX and DYNAMIC PORTFOLIO MATRIX provided below to answer questions about Ylya's work history, skills, contact channels, and codebases.
-2. **Contact & Resume Requests**: If asked for Ylya's resume, LinkedIn, GitHub, email, or phone number, retrieve the exact values from the DYNAMIC PROFILE MATRIX (e.g., downloadable resume link is "${profileData?.communication.links.downloadable_resume || "https://www.hy13dev.com/Resume_Ylya_Martchenko.pdf"}") and present them clearly as professional hyperlinks.
+2. **Contact & Resume Requests**: If asked for Ylya's resume, LinkedIn, GitHub, email, or phone number, retrieve the exact values from the DYNAMIC PROFILE MATRIX (e.g., downloadable resume link is "${profileData?.communication.links.downloadable_resume || "https://www.hy13dev.com/Resume_Ylya_Martchenko.pdf"}") and present them clearly as professional hyperlinks. Always invite the user to also sync via [Or contact me here](/contact) to connect!
 3. **CRITICAL ROUTING BOUNDARY**: Never output absolute external production web links (e.g., do not write out raw .com domains or full GitHub repo URLs) when discussing individual projects. Instead, check the project's ID parameter (e.g., 'honey-pot', 'teslimitless', or 'codemafia') and output a clean internal redirection router link exactly like this: "[View Code and Insights](/projects/repo_name)" (e.g. "[View Code and Insights](/projects/teslimitless)").
 4. **Relocation & Work Style**: If asked about relocation, target regions, or preferred work style, reference the placements matrix (e.g. Luxembourg, Switzerland, North America; Remote/Hybrid).
 5. If an implementation detail is not present in the matrices, say: "I don't have explicit repository execution records on that mechanism yet, but you can sync directly with Ylya at ylyamartchenko@gmail.com or [Or contact me here](/contact)."
@@ -166,23 +254,94 @@ DYNAMIC PORTFOLIO MATRIX (GROUND TRUTH CODING CHUNKS):
 ${contextString}
 `;
 
+  const cookieStore = await cookies();
+
+  const activeModels = MODELS.filter((model) => {
+    return !cookieStore.get(`ylyabot_exhausted_${model}`);
+  });
+
   const stream = createStreamableValue("");
 
-  (async () => {
+  let firstChunk = "";
+  let successModel = "";
+  let activeReader: ReadableStreamDefaultReader<string> | null = null;
+
+  for (const model of activeModels) {
     try {
-      const { textStream } = streamText({
-        model: google("gemini-2.5-flash"),
+      console.log(`Trying model: ${model}`);
+      const googleClient = getGoogleClient();
+      const result = streamText({
+        model: googleClient(model),
         system: systemPrompt,
         messages: messages as unknown as ModelMessage[],
       });
 
-      for await (const textDelta of textStream) {
-        stream.update(textDelta);
+      Promise.resolve(result.text).catch(() => {});
+      Promise.resolve(result.usage).catch(() => {});
+      Promise.resolve(result.finishReason).catch(() => {});
+
+      const reader = result.textStream.getReader();
+      const { value } = await reader.read();
+
+      successModel = model;
+      activeReader = reader;
+      if (value) firstChunk = value;
+      break;
+    } catch (err) {
+      console.error(`🔴 Model ${model} failed to initialize:`, err);
+      const errorMsgLower = extractErrorMessage(err);
+      const isQuota =
+        errorMsgLower.includes("quota") ||
+        errorMsgLower.includes("exhausted") ||
+        errorMsgLower.includes("429") ||
+        errorMsgLower.includes("resource_exhausted") ||
+        errorMsgLower.includes("rate-limits") ||
+        errorMsgLower.includes("nooutputgenerated");
+
+      if (isQuota) {
+        try {
+          const expiry = getPacificMidnightExpiry();
+          cookieStore.set(`ylyabot_exhausted_${model}`, "true", {
+            expires: expiry,
+            path: "/",
+          });
+          console.log(
+            `🍪 Excluded model "${model}" with cookie expiring at midnight Pacific time.`,
+          );
+        } catch (cookieErr) {
+          console.error("⚠️ Failed to set model exhaustion cookie:", cookieErr);
+        }
+      }
+    }
+  }
+
+  if (!successModel || !activeReader) {
+    const fallbackMsg =
+      "⚠️ **Gemini API Quota Exceeded**\n\nYlya's Gemini API free tier daily quota has been reached for my digital twin's LLM connection. Please try again tomorrow, or feel free to contact Ylya directly at ylyamartchenko@gmail.com or [Or contact me here](/contact) to connect!";
+    stream.update(fallbackMsg);
+    stream.done();
+    return { output: stream.value };
+  }
+
+  if (firstChunk) stream.update(firstChunk);
+
+  (async () => {
+    try {
+      while (true) {
+        const { value, done } = await activeReader.read();
+        if (done) break;
+        if (value) {
+          stream.update(value);
+        }
       }
       stream.done();
     } catch (err) {
-      console.error("🔴 Stream generation error:", err);
-      stream.error(err);
+      console.error("🔴 Background streaming reader loop failed:", err);
+      stream.done();
+    } finally {
+      try {
+        activeReader.releaseLock();
+      } catch {}
     }
   })();
 

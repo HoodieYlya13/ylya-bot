@@ -5,12 +5,16 @@ import Link from "next/link";
 import { useSafeBack } from "@/components/layout/NavigationProvider";
 import {
   Bot,
-  User,
-  Send,
   ArrowLeft,
   Terminal,
   Sparkles,
-  Cpu,
+  Briefcase,
+  Code,
+  Workflow,
+  GraduationCap,
+  ArrowUp,
+  ExternalLink,
+  ChevronRight,
 } from "lucide-react";
 import { readStreamableValue } from "@ai-sdk/rsc";
 import { askYlyaBot } from "./actions";
@@ -22,58 +26,46 @@ interface Message {
   isStreaming?: boolean;
 }
 
-const PRESET_QUESTIONS = [
+const PRESET_TOPICS = [
   {
-    label: "💼 Tell me about Ylya's work at Equasens",
+    icon: Briefcase,
+    title: "Equasens & Enterprise Dev",
+    subtext: "Angular, Spring Boot microservices, and CRON workflows.",
     query: "Tell me about Ylya's work at Equasens",
     colorClass:
-      "hover:border-apple-blue/50 hover:text-apple-blue hover:bg-apple-blue/5",
-    response: `**Ylya Martchenko** has been serving as a **Full Stack Developer** at **Equasens** since September 2023 (through September 2026). 
-
-His primary contributions and engineering achievements at Equasens include:
-* **Front-End Architecture:** Scaling scalable frontend interfaces using **Angular**, while successfully introducing and advocating for modern, modular **React** patterns.
-* **Back-End Microservices:** Designing, building, and maintaining robust backend systems utilizing **Spring Boot** (Java 21) within a distributed microservices framework.
-* **Automated Data Pipelines:** Engineering and scheduling automated **CRON jobs** for complex background data operations, system health-checks, and asynchronous enterprise workflows.
-* **API Optimization:** Designing highly performant and typesafe **REST APIs** to guarantee low-latency communication across system boundaries.`,
+      "border-apple-blue/20 hover:border-apple-blue/50 hover:bg-apple-blue/5",
+    iconColor: "text-apple-blue",
+    glowColor: "rgba(0,122,255,0.06)",
   },
   {
-    label: "⚡ What is his core technology stack?",
+    icon: Code,
+    title: "Full Stack Tech Ecosystem",
+    subtext: "Next.js 16, React 19, TypeScript, Rust, and Databases.",
     query: "What is his core technology stack?",
     colorClass:
-      "hover:border-apple-orange/50 hover:text-apple-orange hover:bg-apple-orange/5",
-    response: `According to Ylya's centralized **SSoT skills matrix**, his technical ecosystem is highly polyglot and modern:
-
-* **Primary Web Stack:** Next.js 16, React 19, Angular, TypeScript, JavaScript
-* **Backend & Data Engine:** Spring Boot (Java), Node.js, PostgreSQL, MySQL, REST APIs, GraphQL
-* **Polyglot Programming:** Python, Rust, Java, C, C++, C#
-* **DevOps & Infrastructure:** Docker, Bash scripting, Linux systems administration, macOS, Liquid templating
-* **AI & Agentic Engineering:** AI/RAG Engineering pipelines, vector storage integration, and stateless prompt grounding
-* **Ecosystem Tools:** Git, GitHub, GitLab CI/CD, Postman, Bruno, Insomnia`,
+      "border-apple-orange/20 hover:border-apple-orange/50 hover:bg-apple-orange/5",
+    iconColor: "text-apple-orange",
+    glowColor: "rgba(255,149,0,0.06)",
   },
   {
-    label: "🏗️ How does the SSoT profile.json workflow operate?",
+    icon: Workflow,
+    title: "Central SSoT Sync Engine",
+    subtext: "CI/CD Action compiling profile.json dynamically.",
     query: "How does the SSoT profile.json workflow operate?",
     colorClass:
-      "hover:border-apple-green/50 hover:text-apple-green hover:bg-apple-green/5",
-    response: `Ylya's **Single Source of Truth (SSoT)** architecture is a state-of-the-art decoupled data system designed for absolute dry (Don't Repeat Yourself) consistency:
-
-1. **Central Matrix (\`profile.json\`):** An exhaustive JSON file in the \`HoodieYlya13/HoodieYlya13\` repo that houses all timelines, bio, credentials, skill vectors, and pins.
-2. **Automated CI/CD:** A programmatic Node.js GitHub Action on push compiles the profile data directly into the GitHub profile \`README.md\` and uses the **GitHub GraphQL API** to synchronize featured pins on his account overview page.
-3. **Real-time Seeding:** His Next.js 16/React 19 portfolio app queries the raw GitHub raw JSON URL on demand using Server Components.
-4. **Caching & Stream Performance:** It leverages standard caching (\`revalidate: 3600\`) and React 19 dynamic interleaving (\`<Suspense>\`) to stream pages with **Partial Prerendering (PPR)** for an instant First Contentful Paint.
-5. **YlyaBot Grounding:** I am dynamically injected with this exact JSON schema as my primary grounding matrix, ensuring 100% factual accuracy and zero hallucination.`,
+      "border-apple-green/20 hover:border-apple-green/50 hover:bg-apple-green/5",
+    iconColor: "text-apple-green",
+    glowColor: "rgba(52,199,89,0.06)",
   },
   {
-    label: "🎒 Tell me about his education and background",
+    icon: GraduationCap,
+    title: "Education & Leadership",
+    subtext: "Polytech Nancy engineering, tri-lingual, civic accomplishments.",
     query: "Tell me about his education and background",
     colorClass:
-      "hover:border-apple-yellow/50 hover:text-apple-yellow hover:bg-apple-yellow/5",
-    response: `Ylya is pursuing advanced engineering credentials alongside strong community leadership milestones:
-
-* **Engineering Degree (2023 - 2026):** Currently studying at **Polytech Nancy** in **IARN** (Informatics, Automatic, Robotics, and Networks), focusing on cyber-physical systems, hardware-software integration, and advanced networks.
-* **Physics & Mathematics Foundations:** Holds a BTEC Higher National Diploma in **Physical Measurements** and a Diploma of Higher Education in **Engineering Sciences**, specializing in instrumentation, physical sensors, and math models.
-* **Linguistic Versatility:** Fully trilingual—fluent in **French (C2 Native)**, **English (C1 Professional Fluent)**, and **Russian (C1 Mother tongue)**.
-* **Civic Leadership:** Served as President of Junior Association 2PB, Metz Youth Council representative, and community project lead managing a €100,000 sports infrastructure project for Metz City Hall at age 14.`,
+      "border-apple-yellow/20 hover:border-apple-yellow/50 hover:bg-apple-yellow/5",
+    iconColor: "text-apple-yellow",
+    glowColor: "rgba(255,204,0,0.06)",
   },
 ];
 
@@ -83,25 +75,23 @@ export default function YlyaBotPage() {
     {
       id: "welcome",
       sender: "bot",
-      text: "Hello! I am **YlyaBot v1.5**, Ylya Martchenko's RAG-powered digital twin. My knowledge base is fully grounded in Ylya's centralized SSoT `profile.json` and cross-repo codebase vectors. Ask me anything about his technical expertise, projects, or background!",
+      text: "Hello! I am **YlyaBot v2.0**, Ylya Martchenko's RAG-powered digital twin. My knowledge base is fully grounded in Ylya's centralized SSoT `profile.json` and cross-repo codebase vectors. Ask me anything about his technical expertise, projects, or background!",
     },
   ]);
   const [inputVal, setInputVal] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [hasStartedChat, setHasStartedChat] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const messageIdCounter = useRef(0);
 
   const scrollToBottom = () => {
-    const isIframe =
-      typeof window !== "undefined" && window.self !== window.top;
-
-    if (isIframe && chatContainerRef.current) {
+    if (chatContainerRef.current)
       chatContainerRef.current.scrollTo({
         top: chatContainerRef.current.scrollHeight,
         behavior: "smooth",
       });
-    } else messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
@@ -111,6 +101,7 @@ export default function YlyaBotPage() {
   const handleSend = async (textToSend: string) => {
     if (!textToSend.trim()) return;
 
+    setHasStartedChat(true);
     messageIdCounter.current += 1;
     const userMsgId = `user-${messageIdCounter.current}`;
 
@@ -132,7 +123,6 @@ export default function YlyaBotPage() {
         }));
 
       const { output } = await askYlyaBot({ messages: apiMessages });
-
       setIsTyping(false);
 
       messageIdCounter.current += 1;
@@ -164,70 +154,51 @@ export default function YlyaBotPage() {
       setIsTyping(false);
 
       messageIdCounter.current += 1;
-      const isRateLimit =
-        error instanceof Error &&
-        (error.message.includes("TOO_MANY_REQUESTS") ||
-          error.message.toLowerCase().includes("too many requests") ||
-          error.message.includes("slow down"));
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `bot-err-${messageIdCounter.current}`,
-          sender: "bot",
-          text: isRateLimit
-            ? "⚠️ Rate limit exceeded. Please wait a minute before sending another message (max 10 messages/min)."
-            : "⚠️ I'm sorry, I'm having trouble connecting to my central matrix intelligence channel right now. Please try again, or reach out directly to Ylya at ylyamartchenko@gmail.com.",
-        },
-      ]);
+      setMessages((prev) => {
+        const filtered = prev.filter(
+          (m) => !m.isStreaming || m.text.trim() !== "",
+        );
+        return [
+          ...filtered,
+          {
+            id: `bot-err-${messageIdCounter.current}`,
+            sender: "bot",
+            text: "⚠️ I'm sorry, I'm having trouble connecting to my central matrix intelligence channel right now. Please try again, or reach out directly to Ylya at ylyamartchenko@gmail.com.",
+          },
+        ];
+      });
     }
   };
 
-  const renderMessageText = (text: string) => {
-    return text.split("\n").map((line, idx) => {
-      let content: React.ReactNode = line;
-
-      const isBullet =
-        line.trim().startsWith("* ") || line.trim().startsWith("- ");
-      if (isBullet) {
-        const bulletText = line.trim().substring(2);
-        content = renderBoldText(bulletText);
-        return (
-          <li
-            key={idx}
-            className="ml-4 list-disc text-sm md:text-base leading-relaxed text-foreground mb-1"
-          >
-            {content}
-          </li>
-        );
-      }
-
-      content = renderBoldText(line);
-      return (
-        <p
-          key={idx}
-          className="text-sm md:text-base leading-relaxed text-foreground mb-2 min-h-4"
-        >
-          {content}
-        </p>
-      );
-    });
-  };
-
-  const renderBoldText = (lineText: string) => {
+  const renderBoldText = (lineText: string): React.ReactNode[] => {
     let cursor = 0;
     const elements: React.ReactNode[] = [];
 
     const parseLink = (text: string, startIdx: number) => {
       const endLabelIdx = text.indexOf("]", startIdx + 1);
-      if (endLabelIdx !== -1 && text[endLabelIdx + 1] === "(") {
-        const endUrlIdx = text.indexOf(")", endLabelIdx + 2);
-        if (endUrlIdx !== -1)
+      if (endLabelIdx === -1) return null;
+
+      let parenStartIdx = endLabelIdx + 1;
+      while (parenStartIdx < text.length && text[parenStartIdx] === " ")
+        parenStartIdx++;
+
+      if (text[parenStartIdx] === "(") {
+        const endUrlIdx = text.indexOf(")", parenStartIdx + 1);
+        if (endUrlIdx !== -1) {
+          let url = text.substring(parenStartIdx + 1, endUrlIdx).trim();
+          if (
+            (url.startsWith("'") && url.endsWith("'")) ||
+            (url.startsWith('"') && url.endsWith('"'))
+          )
+            url = url.substring(1, url.length - 1);
+
           return {
             label: text.substring(startIdx + 1, endLabelIdx),
-            url: text.substring(endLabelIdx + 2, endUrlIdx),
+            url,
             endIdx: endUrlIdx + 1,
           };
+        }
       }
       return null;
     };
@@ -235,6 +206,20 @@ export default function YlyaBotPage() {
     while (cursor < lineText.length) {
       const boldIdx = lineText.indexOf("**", cursor);
       const codeIdx = lineText.indexOf("`", cursor);
+
+      let italicIdx = -1;
+      let startSearch = cursor;
+      while (true) {
+        const found = lineText.indexOf("*", startSearch);
+        if (found === -1) break;
+        const isBoldLeft = found > 0 && lineText[found - 1] === "*";
+        const isBoldRight = found + 1 < lineText.length && lineText[found + 1] === "*";
+        if (!isBoldLeft && !isBoldRight) {
+          italicIdx = found;
+          break;
+        }
+        startSearch = found + (isBoldRight ? 2 : 1);
+      }
 
       let nextLinkIdx = -1;
       let linkDetails: { label: string; url: string; endIdx: number } | null =
@@ -254,11 +239,15 @@ export default function YlyaBotPage() {
       }
 
       let winIdx = -1;
-      let winType: "bold" | "code" | "link" | "text" = "text";
+      let winType: "bold" | "italic" | "code" | "link" | "text" = "text";
 
       if (boldIdx !== -1) {
         winIdx = boldIdx;
         winType = "bold";
+      }
+      if (italicIdx !== -1 && (winIdx === -1 || italicIdx < winIdx)) {
+        winIdx = italicIdx;
+        winType = "italic";
       }
       if (codeIdx !== -1 && (winIdx === -1 || codeIdx < winIdx)) {
         winIdx = codeIdx;
@@ -285,7 +274,7 @@ export default function YlyaBotPage() {
         if (endBoldIdx !== -1) {
           elements.push(
             <strong key={winIdx} className="font-semibold text-apple-orange">
-              {lineText.substring(winIdx + 2, endBoldIdx)}
+              {renderBoldText(lineText.substring(winIdx + 2, endBoldIdx))}
             </strong>,
           );
           cursor = endBoldIdx + 2;
@@ -293,13 +282,39 @@ export default function YlyaBotPage() {
           elements.push(<span key={winIdx}>**</span>);
           cursor = winIdx + 2;
         }
+      } else if (winType === "italic") {
+        let endItalicIdx = -1;
+        let startSearchEnd = winIdx + 1;
+        while (true) {
+          const found = lineText.indexOf("*", startSearchEnd);
+          if (found === -1) break;
+          const isBoldLeft = found > 0 && lineText[found - 1] === "*";
+          const isBoldRight = found + 1 < lineText.length && lineText[found + 1] === "*";
+          if (!isBoldLeft && !isBoldRight) {
+            endItalicIdx = found;
+            break;
+          }
+          startSearchEnd = found + (isBoldRight ? 2 : 1);
+        }
+
+        if (endItalicIdx !== -1) {
+          elements.push(
+            <em key={winIdx} className="italic text-foreground/90">
+              {renderBoldText(lineText.substring(winIdx + 1, endItalicIdx))}
+            </em>,
+          );
+          cursor = endItalicIdx + 1;
+        } else {
+          elements.push(<span key={winIdx}>*</span>);
+          cursor = winIdx + 1;
+        }
       } else if (winType === "code") {
         const endCodeIdx = lineText.indexOf("`", winIdx + 1);
         if (endCodeIdx !== -1) {
           elements.push(
             <code
               key={winIdx}
-              className="px-1.5 py-0.5 rounded bg-muted/95 border border-border text-apple-blue font-mono text-xs md:text-sm"
+              className="px-1.5 py-0.5 rounded bg-muted/80 border border-border text-apple-blue font-mono text-xs md:text-sm"
             >
               {lineText.substring(winIdx + 1, endCodeIdx)}
             </code>,
@@ -317,7 +332,7 @@ export default function YlyaBotPage() {
             <Link
               href={url}
               key={winIdx}
-              className="underline text-apple-blue hover:text-apple-blue/85 transition-colors font-medium"
+              className="underline text-apple-blue hover:text-apple-blue/80 transition-colors font-medium"
             >
               {label}
             </Link>,
@@ -329,9 +344,10 @@ export default function YlyaBotPage() {
               key={winIdx}
               target="_blank"
               rel="noopener noreferrer"
-              className="underline text-apple-blue hover:text-apple-blue/85 transition-colors font-medium inline-flex items-center gap-0.5"
+              className="underline text-apple-blue hover:text-apple-blue/80 transition-colors font-medium inline-flex items-center gap-0.5"
             >
               {label}
+              <ExternalLink className="size-3 inline" />
             </a>,
           );
         cursor = endIdx;
@@ -341,154 +357,325 @@ export default function YlyaBotPage() {
     return elements;
   };
 
-  return (
-    <section className="relative h-screen h-dvh flex flex-col items-center p-3 sm:p-4 md:p-6 overflow-hidden bg-background z-10">
-      <div className="absolute top-20 left-10 text-apple-yellow/10 animate-pulse pointer-events-none">
-        <Sparkles className="size-24" />
-      </div>
-      <div className="absolute bottom-20 right-10 text-apple-blue/5 animate-bounce duration-1000 pointer-events-none">
-        <Cpu className="size-32" />
-      </div>
+  const renderMessageText = (text: string) => {
+    return text.split("\n").map((line, idx) => {
+      const trimmed = line.trim();
 
-      <div className="w-full max-w-4xl z-10 flex flex-col flex-1 gap-3 md:gap-4 overflow-hidden animate-fade-in h-full">
-        <div className="flex justify-between items-center gap-3 bg-card/30 backdrop-blur-xl border border-border/60 rounded-xl md:rounded-2xl p-3 md:p-4 shadow-2xl shrink-0">
+      if (trimmed === "***" || trimmed === "---" || trimmed === "___")
+        return (
+          <hr
+            key={idx}
+            className="my-5 border-t border-border/40 w-full"
+          />
+        );
+
+      if (trimmed.startsWith("###### "))
+        return (
+          <h6 key={idx} className="text-xs font-bold text-foreground mt-4 mb-2">
+            {renderBoldText(trimmed.substring(7))}
+          </h6>
+        );
+
+      if (trimmed.startsWith("##### "))
+        return (
+          <h5 key={idx} className="text-xs font-bold text-foreground mt-4 mb-2">
+            {renderBoldText(trimmed.substring(6))}
+          </h5>
+        );
+
+      if (trimmed.startsWith("#### "))
+        return (
+          <h4
+            key={idx}
+            className="text-sm font-semibold text-foreground mt-4 mb-2"
+          >
+            {renderBoldText(trimmed.substring(5))}
+          </h4>
+        );
+
+      if (trimmed.startsWith("### "))
+        return (
+          <h3
+            key={idx}
+            className="text-base font-bold text-foreground mt-4 mb-2"
+          >
+            {renderBoldText(trimmed.substring(4))}
+          </h3>
+        );
+
+      if (trimmed.startsWith("## "))
+        return (
+          <h2
+            key={idx}
+            className="text-lg font-extrabold text-foreground mt-5 mb-2"
+          >
+            {renderBoldText(trimmed.substring(3))}
+          </h2>
+        );
+
+      if (trimmed.startsWith("# "))
+        return (
+          <h1
+            key={idx}
+            className="text-xl font-extrabold text-foreground mt-6 mb-3"
+          >
+            {renderBoldText(trimmed.substring(2))}
+          </h1>
+        );
+
+      const isBullet = trimmed.startsWith("* ") || trimmed.startsWith("- ");
+      if (isBullet) {
+        const bulletText = trimmed.substring(2);
+        const content = renderBoldText(bulletText);
+        return (
+          <li
+            key={idx}
+            className="ml-5 list-disc text-sm md:text-base leading-relaxed text-foreground/95 mb-1"
+          >
+            {content}
+          </li>
+        );
+      }
+
+      const content = renderBoldText(line);
+      return (
+        <p
+          key={idx}
+          className="text-sm md:text-base leading-relaxed text-foreground/95 mb-3 min-h-4 font-normal"
+        >
+          {content}
+        </p>
+      );
+    });
+  };
+
+  return (
+    <section className="relative h-screen h-dvh w-full flex flex-col bg-background overflow-hidden z-10 font-sans">
+      <div className="absolute top-[-10%] left-[-15%] w-[60%] h-[50%] rounded-full bg-apple-orange/8 dark:bg-apple-orange/5 blur-[120px] pointer-events-none animate-pulse duration-[6000ms]" />
+      <div className="absolute bottom-[-10%] right-[-15%] w-[60%] h-[50%] rounded-full bg-apple-blue/6 dark:bg-apple-blue/4 blur-[130px] pointer-events-none animate-pulse duration-[8000ms]" />
+      <div className="absolute top-[25%] right-[10%] w-[35%] h-[35%] rounded-full bg-apple-yellow/4 dark:bg-apple-yellow/2 blur-[100px] pointer-events-none" />
+
+      <header className="w-full border-b border-border/40 shrink-0 bg-background/50 backdrop-blur-md z-10">
+        <div className="max-w-3xl mx-auto w-full flex justify-between items-center py-4 px-4 md:px-0">
           <div className="flex items-center gap-3">
             <button
               onClick={(e) => {
                 e.preventDefault();
                 safeBack();
               }}
-              className="p-2 hover:bg-muted/50 rounded-lg text-muted-foreground hover:text-foreground transition-colors cursor-pointer border-none bg-transparent"
+              className="p-1.5 hover:bg-muted/50 rounded-lg text-muted-foreground hover:text-foreground transition-colors cursor-pointer border-none bg-transparent"
               aria-label="Go back"
             >
-              <ArrowLeft className="size-5" />
+              <ArrowLeft className="size-4" />
             </button>
             <div className="flex items-center gap-2">
-              <div className="relative">
-                <div className="size-10 bg-linear-to-tr from-apple-orange to-apple-yellow rounded-xl flex items-center justify-center shadow-lg shadow-apple-orange/20">
-                  <Bot className="size-6 text-background dark:text-foreground" />
-                </div>
-                <div className="absolute -bottom-0.5 -right-0.5 size-3 bg-apple-green rounded-full border-2 border-background animate-pulse" />
-              </div>
+              <div className="size-2 rounded-full bg-apple-green animate-pulse shadow-[0_0_8px_rgba(52,199,89,0.5)]" />
               <div>
-                <h1 className="text-base font-bold text-foreground flex items-center gap-1.5">
+                <h1 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                   YlyaBot
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-apple-blue/10 text-apple-blue border border-apple-blue/20">
-                    v1.5
+                  <span className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded-md bg-apple-orange/10 text-apple-orange border border-apple-orange/20">
+                    v2.0
                   </span>
                 </h1>
-                <p className="text-xs text-muted-foreground">
-                  Stateless Context Engine Active
-                </p>
               </div>
             </div>
           </div>
 
-          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card/50 border border-border text-xs font-mono text-muted-foreground">
-            <Terminal className="size-3.5 text-apple-green" />
-            <span>sys_context: profile.json</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/30 border border-border/40 text-[10px] font-mono text-muted-foreground select-none">
+            <Terminal className="size-3 text-apple-green" />
+            <span>SSoT Linked</span>
           </div>
         </div>
+      </header>
 
-        <div className="flex flex-col gap-1.5 shrink-0">
-          <p className="text-[10px] sm:text-xs text-muted-foreground font-medium px-1 flex items-center gap-1">
-            <Sparkles className="size-3 text-apple-orange" /> Grounded Context
-            Chips (Click to ask):
-          </p>
-          <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
-            {PRESET_QUESTIONS.map((pq, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleSend(pq.query)}
-                className={`text-left p-2 md:p-3 rounded-lg md:rounded-xl border border-border/80 text-[10px] sm:text-xs text-foreground transition-all duration-200 shadow-sm backdrop-blur-sm cursor-pointer hover:translate-y-px ${pq.colorClass}`}
-              >
-                {pq.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div
-          ref={chatContainerRef}
-          className="flex-1 overflow-y-auto rounded-xl md:rounded-2xl bg-card/20 border border-border/50 backdrop-blur-xl p-3 md:p-6 shadow-inner flex flex-col gap-3 md:gap-4 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
-        >
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex gap-3 max-w-[85%] ${
-                msg.sender === "user"
-                  ? "self-end flex-row-reverse"
-                  : "self-start"
-              }`}
-            >
-              <div
-                className={`size-8 rounded-lg flex items-center justify-center shadow-md shrink-0 ${
-                  msg.sender === "user"
-                    ? "bg-secondary border border-border text-secondary-foreground"
-                    : "bg-linear-to-br from-apple-orange to-apple-yellow text-background dark:text-foreground"
-                }`}
-              >
-                {msg.sender === "user" ? (
-                  <User className="size-4" />
-                ) : (
-                  <Bot className="size-4" />
-                )}
+      <main className="flex-1 overflow-hidden relative flex flex-col w-full z-10">
+        <div className="max-w-3xl mx-auto w-full flex-1 overflow-hidden relative flex flex-col px-4 md:px-0">
+          {!hasStartedChat ? (
+            <div className="flex-1 overflow-y-auto flex flex-col justify-center py-4 md:py-8 gap-6 md:gap-10 scrollbar-none animate-fade-in">
+              <div className="flex flex-col items-center text-center gap-3 md:gap-4 max-w-xl mx-auto px-4 mt-2 md:mt-0">
+                <div className="relative flex items-center justify-center size-16 md:size-20">
+                  <div className="absolute inset-0 bg-linear-to-tr from-apple-orange to-apple-yellow rounded-2xl blur-md opacity-35 animate-pulse" />
+                  <div className="relative size-12 md:size-16 bg-linear-to-tr from-apple-orange to-apple-yellow rounded-2xl flex items-center justify-center shadow-lg">
+                    <Bot className="size-7 md:size-9 text-white dark:text-foreground" />
+                  </div>
+                </div>
+                <div>
+                  <h2 className="text-xl md:text-3xl font-extrabold tracking-tight text-foreground">
+                    Ylya&apos;s Digital Twin
+                  </h2>
+                  <p className="text-xs md:text-sm text-muted-foreground mt-1 md:mt-1.5 max-w-sm mx-auto">
+                    Grounded in a verified Skills Matrix and multi-repository
+                    codebase retrieval models.
+                  </p>
+                </div>
               </div>
 
-              <div
-                className={`p-2.5 sm:p-3.5 md:p-4 rounded-xl sm:rounded-2xl shadow-xl border ${
-                  msg.sender === "user"
-                    ? "bg-muted/95 border-border rounded-tr-none text-foreground"
-                    : "bg-card/75 border-border/50 rounded-tl-none text-foreground"
-                }`}
-              >
-                <div className="flex flex-col gap-0.5 animate-fade-in">
-                  {renderMessageText(msg.text)}
-                  {msg.isStreaming && (
-                    <span className="inline-block w-1.5 h-4 bg-apple-orange animate-pulse ml-0.5" />
-                  )}
+              <div className="flex flex-col gap-3 w-full">
+                <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider text-center flex items-center justify-center gap-1.5 px-4">
+                  <Sparkles className="size-3 text-apple-orange" /> Suggested
+                  Focus Areas
+                </p>
+
+                <div className="hidden sm:grid grid-cols-2 gap-3 max-w-2xl mx-auto w-full px-4 md:px-0">
+                  {PRESET_TOPICS.map((topic, idx) => {
+                    const IconComp = topic.icon;
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => handleSend(topic.query)}
+                        style={{
+                          boxShadow: `hover: 0 10px 30px ${topic.glowColor}`,
+                        }}
+                        className={`group text-left p-4 rounded-2xl border bg-card/35 backdrop-blur-md transition-all duration-300 cursor-pointer flex flex-col justify-between h-[110px] ${topic.colorClass}`}
+                      >
+                        <div className="flex justify-between items-start w-full">
+                          <div
+                            className={`p-1.5 rounded-lg bg-muted/60 ${topic.iconColor}`}
+                          >
+                            <IconComp className="size-4" />
+                          </div>
+                          <ChevronRight className="size-4 text-muted-foreground/30 group-hover:text-foreground/70 transition-colors duration-300" />
+                        </div>
+                        <div>
+                          <h3 className="text-xs font-semibold text-foreground group-hover:text-apple-orange transition-colors">
+                            {topic.title}
+                          </h3>
+                          <p className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5">
+                            {topic.subtext}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex sm:hidden overflow-x-auto gap-3 px-4 pb-3 scrollbar-none snap-x snap-mandatory w-full max-w-full">
+                  {PRESET_TOPICS.map((topic, idx) => {
+                    const IconComp = topic.icon;
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => handleSend(topic.query)}
+                        className={`snap-start shrink-0 text-left p-3.5 rounded-2xl border bg-card/35 backdrop-blur-md transition-all duration-300 cursor-pointer flex flex-col justify-between w-[250px] h-[95px] ${topic.colorClass}`}
+                      >
+                        <div className="flex justify-between items-start w-full">
+                          <div
+                            className={`p-1 rounded-lg bg-muted/60 ${topic.iconColor}`}
+                          >
+                            <IconComp className="size-3.5" />
+                          </div>
+                          <ChevronRight className="size-3.5 text-muted-foreground/30" />
+                        </div>
+                        <div>
+                          <h3 className="text-[11px] font-semibold text-foreground">
+                            {topic.title}
+                          </h3>
+                          <p className="text-[9px] text-muted-foreground line-clamp-1 mt-0.5">
+                            {topic.subtext}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
-          ))}
+          ) : (
+            <div
+              ref={chatContainerRef}
+              className="flex-1 overflow-y-auto py-6 flex flex-col gap-6 scrollbar-none"
+            >
+              {messages.map((msg) => {
+                const isUser = msg.sender === "user";
+                return (
+                  <div
+                    key={msg.id}
+                    className={`flex w-full gap-4 ${isUser ? "justify-end" : "justify-start"}`}
+                  >
+                    {!isUser && (
+                      <div className="size-8 rounded-lg bg-linear-to-br from-apple-orange to-apple-yellow text-white dark:text-foreground flex items-center justify-center shadow-sm shrink-0 mt-0.5">
+                        <Bot className="size-4" />
+                      </div>
+                    )}
 
-          {isTyping && (
-            <div className="flex gap-3 max-w-[80%] self-start">
-              <div className="size-8 rounded-lg bg-linear-to-br from-apple-orange to-apple-yellow text-background dark:text-foreground flex items-center justify-center shrink-0 animate-pulse">
-                <Bot className="size-4 animate-spin duration-3000" />
-              </div>
-              <div className="p-4 rounded-2xl rounded-tl-none bg-card/45 border border-border text-muted-foreground flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-apple-orange animate-bounce [animation-delay:-0.3s]" />
-                <span className="size-2 rounded-full bg-apple-orange animate-bounce [animation-delay:-0.15s]" />
-                <span className="size-2 rounded-full bg-apple-orange animate-bounce" />
-              </div>
+                    <div
+                      className={`max-w-[85%] ${
+                        isUser
+                          ? "p-3.5 rounded-2xl rounded-tr-xs bg-linear-to-tr from-apple-orange/15 to-apple-orange/5 border border-apple-orange/20 text-foreground shadow-xs text-sm md:text-base leading-relaxed"
+                          : "flex flex-col gap-0.5 text-foreground leading-relaxed pl-1"
+                      }`}
+                    >
+                      {isUser ? (
+                        <p className="font-normal">{msg.text}</p>
+                      ) : (
+                        <div className="flex flex-col animate-fade-in font-normal">
+                          {renderMessageText(msg.text)}
+                          {msg.isStreaming && (
+                            <span className="inline-block w-1.5 h-4 bg-apple-orange animate-pulse ml-0.5 align-middle" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {isTyping && (
+                <div className="flex gap-4 items-start w-full">
+                  <div className="size-8 rounded-lg bg-linear-to-br from-apple-orange to-apple-yellow text-white dark:text-foreground flex items-center justify-center shrink-0 shadow-sm animate-pulse">
+                    <Bot className="size-4" />
+                  </div>
+                  <div className="p-3.5 rounded-2xl rounded-tl-xs bg-muted/40 border border-border/40 text-muted-foreground flex items-center gap-1.5 shadow-xs">
+                    <span className="size-1.5 rounded-full bg-apple-orange animate-bounce [animation-delay:-0.3s]" />
+                    <span className="size-1.5 rounded-full bg-apple-orange animate-bounce [animation-delay:-0.15s]" />
+                    <span className="size-1.5 rounded-full bg-apple-orange animate-bounce" />
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
             </div>
           )}
-          <div ref={messagesEndRef} />
         </div>
+      </main>
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSend(inputVal);
-          }}
-          className="flex gap-2 shrink-0 pb-1"
-        >
-          <input
-            type="text"
-            value={inputVal}
-            onChange={(e) => setInputVal(e.target.value)}
-            placeholder="Ask YlyaBot anything..."
-            className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 rounded-xl bg-card/40 border border-border hover:border-border/80 focus:border-apple-orange/50 text-foreground placeholder-muted-foreground text-sm focus:outline-none focus:ring-1 focus:ring-apple-orange/20 transition-all duration-200 backdrop-blur-md shadow-lg"
-          />
-          <button
-            type="submit"
-            disabled={!inputVal.trim()}
-            className="px-5 bg-apple-orange hover:bg-apple-orange/90 disabled:opacity-40 disabled:pointer-events-none text-background dark:text-foreground rounded-xl flex items-center justify-center transition-all duration-200 shadow-lg shadow-apple-orange/10 cursor-pointer border-none"
+      <div className="w-full border-t border-border/40 shrink-0 bg-background/50 backdrop-blur-md py-4 z-10">
+        <div className="max-w-3xl mx-auto w-full px-4 md:px-0">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSend(inputVal);
+            }}
+            className="relative flex items-center w-full"
           >
-            <Send className="size-4" />
-          </button>
-        </form>
+            <div className="absolute left-4 text-muted-foreground/60">
+              <Sparkles className="size-4 text-apple-orange" />
+            </div>
+
+            <input
+              type="text"
+              value={inputVal}
+              onChange={(e) => setInputVal(e.target.value)}
+              placeholder="Ask about Equasens milestones, Skills matrix, SSoT pipelines..."
+              className="w-full pl-11 pr-14 py-3.5 rounded-2xl bg-card/45 backdrop-blur-xl border border-border/70 hover:border-border focus:border-apple-orange/50 text-foreground placeholder-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-apple-orange/10 transition-all duration-300 shadow-sm"
+            />
+
+            <button
+              type="submit"
+              disabled={!inputVal.trim()}
+              className="absolute right-2 px-3 py-2 bg-apple-orange hover:bg-apple-orange/95 disabled:opacity-30 disabled:pointer-events-none text-white rounded-xl flex items-center justify-center transition-all duration-200 cursor-pointer border-none shadow-sm shadow-apple-orange/20"
+            >
+              <ArrowUp className="size-4" strokeWidth={2.5} />
+            </button>
+          </form>
+
+          <div className="flex items-center justify-center gap-1.5 mt-2.5 text-[9px] sm:text-xs text-muted-foreground/80 font-mono">
+            <div className="size-1.5 rounded-full bg-apple-green animate-pulse" />
+            <span>
+              Grounded via Supabase Vector Index & Centralized profile.json
+            </span>
+          </div>
+        </div>
       </div>
     </section>
   );
