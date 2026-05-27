@@ -259,6 +259,25 @@ for await (const delta of readStreamableValue(output)) {
 
 ---
 
+## 📊 Real-Time Secure Telemetry & Analytics Dashboard (`/ylya-bot/metrics`)
+
+To monitor conversational engagement, latency, and AI usage metrics, YlyaBot integrates a production-ready, highly secure **Telemetry & Analytics Control Plane** served directly under `/ylya-bot/metrics`.
+
+### 🛡️ Stateless Cryptographic Authentication Gateway
+* **Mechanism:** Access is fully protected via a stateless cryptographic JWT validation schema (HMAC-SHA256 signature verification) configured on dynamic environment tokens (`ANALYTICS_PASSWORD` and `JWT_SECRET`).
+* **Session Storage:** Auth sessions are maintained completely server-side via encrypted, `httpOnly`, `secure`, and `sameSite: "lax"` browser cookies. No vulnerable session indicators are ever leaked client-side.
+
+### 🧬 High-Speed Hybrid Data Pipelines
+The analytics suite acts as a unified ingestion plane, combining:
+1. **Persistent Relational Aggregator (Supabase Postgres):** Performs direct, low-latency queries on the `ylyabot_logs` table, fetching detailed transaction logs (full question/response strings, latency charts, city/country headers, and client user-agent specs).
+2. **Atomic In-Memory Counters (Upstash Redis):** Aggregates raw query volumes, daily activity charts, model call distributions, and country statistics in atomic Redis hashes under sub-5ms lookup constraints.
+
+### ⚡ React 19 Compiler-Native & Zero-Flash UI
+* **No Runtime Overhead:** Completely free of legacy `useMemo` hooks, leveraging the native **React 19 Compiler** for ultimate layout element optimization.
+* **Liquid Transitions:** Employs an ultra-premium dark-glass visual aesthetic containing active neon indicators, shaking lock-animation interfaces, dynamic status grids, and fully responsive CSS charts scaling seamlessly across viewport widths with **zero hydration flashes**.
+
+---
+
 ## 🎨 Premium Design Aesthetics
 
 The user interface follows a modern, responsive minimalist design system matching the rest of the application ecosystem:

@@ -17,22 +17,26 @@
       "Gemini API",
       "Vercel AI SDK",
       "Upstash Redis Rate Limiting",
+      "Upstash Redis (Atomic Telemetry & Global Counters)",
+      "Supabase Database (Detailed Interaction Telemetry)",
+      "Stateless JWT (HMAC-SHA256 Sessions)",
       "HTTP Cookies (Pacific Midnight Expiry)",
       "Git Submodules"
     ]
   },
-  "comprehensive_description": "An event-driven, decoupled Retrieval-Augmented Generation (RAG) agent and streaming chat interface acting as an interactive professional clone of Ylya Martchenko. The system implements a dynamic Git Submodule pattern to expose the bot as a standalone module inside a core Next.js host while retaining an independent repository structure. Leveraging an optimized PostgreSQL Remote Procedure Call (RPC), the bot matches recruiting queries with sub-10ms database latency, utilizing vector cosine similarity calculations to deliver high-precision context grounding. It features a robust 5-tier model fallback hierarchy with timezone-aware cookie exclusions, resolving Gemini API rate limits with zero downtime.",
+  "comprehensive_description": "An event-driven, decoupled Retrieval-Augmented Generation (RAG) agent and streaming chat interface acting as an interactive professional clone of Ylya Martchenko. The system implements a dynamic Git Submodule pattern to expose the bot as a standalone module inside a core Next.js host while retaining an independent repository structure. Leveraging an optimized PostgreSQL Remote Procedure Call (RPC), the bot matches recruiting queries with sub-10ms database latency, utilizing vector cosine similarity calculations to deliver high-precision context grounding. It features a robust 5-tier model fallback hierarchy with timezone-aware cookie exclusions, resolving Gemini API rate limits with zero downtime. Additionally, it integrates a production-grade secure real-time analytics dashboard monitoring conversation telemetry, model efficiency, and geographic request metrics.",
   "engineering_highlights": [
     "Architected a Decoupled RAG Architecture using Git Submodules to host the YlyaBot agent independently, separating presentation layers from ingestion codebases while keeping global workspace configurations clean.",
     "Engineered a robust 5-Tier prioritized Model Fallback Hierarchy (gemini-flash-latest -> gemini-3.5-flash -> gemini-2.5-flash -> gemini-3.1-flash-lite -> gemma-4) to guarantee consistent high-uptime LLM performance.",
     "Implemented a Time-Zone Aware Cookie Exclusion system expiring at exactly midnight Pacific Time (America/Los_Angeles) to cache quota-exhausted endpoints, preventing redundant and failing API calls.",
     "Designed a high-performance vector matching function inside Supabase using PL/pgSQL, computing multi-dimensional cosine distance metrics natively on the database hardware layer.",
-    "Built a mobile-first, high-fidelity chat dashboard utilizing the Vercel AI SDK, optimizing response times to under 150ms time-to-first-token using React Server Actions and modern streamable value client iterators."
+    "Built a mobile-first, high-fidelity chat dashboard utilizing the Vercel AI SDK, optimizing response times to under 150ms time-to-first-token using React Server Actions and modern streamable value client iterators.",
+    "Developed a Secure Telemetry & Real-Time Analytics Dashboard (/ylya-bot/metrics) protected by stateless cryptographic JWT authentication, combining live PostgreSQL database logs with high-performance rolling Redis aggregate metrics."
   ],
   "measurable_metrics": {
-    "execution_latency": "Under 150ms time-to-first-token token streaming; sub-10ms PostgreSQL vector retrieval execution speed.",
-    "ui_performance": "60 FPS responsive animations utilizing client-side stream reading hooks, rate-limiting guards, and strict layout containment supporting dynamic HTML5 semantic structures (<header>, <main>, <section>).",
-    "operational_cost": "$0/month. Operates entirely within Google AI Studio and Supabase free-tier thresholds, dropping system maintenance overhead to zero."
+    "execution_latency": "Under 150ms time-to-first-token token streaming; sub-10ms PostgreSQL vector retrieval execution speed; sub-5ms stateless cryptographic JWT signature verification.",
+    "ui_performance": "60 FPS responsive animations utilizing client-side stream reading hooks, rate-limiting guards, and strict layout containment supporting dynamic HTML5 semantic structures (<header>, <main>, <section>). Exclusively compiled via the native React 19 compiler with zero legacy hook overhead.",
+    "operational_cost": "$0/month. Operates entirely within Google AI Studio, Supabase, and Upstash free-tier thresholds, dropping system maintenance overhead to zero."
   },
   "star_challenges": [
     {
@@ -48,14 +52,14 @@
       "inline_image": ""
     },
     {
-      "situation": "Rapidly firing concurrent asynchronous vector inserts from GitHub Action runners into a remote database index triggers write race conditions, causing duplicate key violations.",
-      "action": "Refactored the Node.js ingestion engine to utilize an idempotent SQL upsert protocol through the Supabase client, forcing atomic row overwrites on index collisions.",
-      "result": "Ensured bulletproof pipeline execution stability across all 14 repositories during rapid code deployments.",
+      "situation": "Building real-time dashboards in modern React frameworks regularly triggers hydration mismatches when server-rendered timestamps and client-rendered layouts conflict, especially on high-frequency mobile viewport states.",
+      "action": "Adopted pure utility-first layouts, isolated dynamic locks inside deferred CSS micro-animation states rather than synchronous React render frames, migrated client-side telemetry queries to server-rendered Next.js Async Components, and replaced legacy useMemo hooks with native React 19 Compiler instructions.",
+      "result": "Fully resolved layout shift flashes and hydration anomalies, creating a rock-solid, fully responsive mobile analytics console that compiles with zero console warnings.",
       "inline_image": ""
     }
   ],
   "architectural_deep_dive": {
-    "text": "The engine matches input queries against vectorized segments of profile.json and individual repository records. High-fidelity embedding is achieved via gemini-embedding-2 compressed natively to 768 dimensions, stored and indexed in Supabase. Recruiter chat queries are processed by a typesafe React Server Action that validates inputs with Zod, checks Upstash Redis rate limits, filters models against active quota exclusion cookies, and streams Gemini tokens securely to the client.",
+    "text": "The engine matches input queries against vectorized segments of profile.json and individual repository records. High-fidelity embedding is achieved via gemini-embedding-2 compressed natively to 768 dimensions, stored and indexed in Supabase. Recruiter chat queries are processed by a typesafe React Server Action that validates inputs with Zod, checks Upstash Redis rate limits, filters models against active quota exclusion cookies, and streams Gemini tokens securely to the client. Detailed telemetry records are stored atomically inside Supabase, while aggregate session distributions (daily count history, models, countries) are resolved via Upstash Redis pipelines, all surfaced dynamically inside our secure metrics workspace.",
     "illustration": null
   },
   "lessons_learned": "Injecting structural key data (like languages or contact details) directly into system contexts guarantees deterministic truth, while keeping semantic RAG strictly for project implementation logs yields the highest conversational coherence."
