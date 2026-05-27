@@ -488,7 +488,7 @@ export default function YlyaBotPage() {
       </header>
 
       <main className="flex-1 overflow-hidden relative flex flex-col w-full z-10">
-        <div className="max-w-3xl mx-auto w-full flex-1 overflow-hidden relative flex flex-col px-4 md:px-0">
+        <div className="max-w-3xl mx-auto w-full flex-1 overflow-hidden relative flex flex-col">
           {!hasStartedChat ? (
             <div className="flex-1 overflow-y-auto flex flex-col justify-center py-4 md:py-8 gap-6 md:gap-10 scrollbar-none animate-fade-in">
               <div className="flex flex-col items-center text-center gap-3 md:gap-4 max-w-xl mx-auto px-4 mt-2 md:mt-0">
@@ -515,7 +515,7 @@ export default function YlyaBotPage() {
                   Focus Areas
                 </p>
 
-                <div className="hidden sm:grid grid-cols-2 gap-3 max-w-2xl mx-auto w-full px-4 md:px-0">
+                <div className="hidden sm:grid grid-cols-2 gap-3 max-w-2xl mx-auto w-full px-4 md:px-0 right-2">
                   {PRESET_TOPICS.map((topic, idx) => {
                     const IconComp = topic.icon;
                     return (
@@ -548,7 +548,7 @@ export default function YlyaBotPage() {
                   })}
                 </div>
 
-                <div className="flex sm:hidden overflow-x-auto gap-3 px-4 pb-3 scrollbar-none snap-x snap-mandatory w-full max-w-full">
+                <div className="flex sm:hidden overflow-x-auto gap-3 px-4 pb-3 scrollbar-none snap-x snap-mandatory scroll-px-4 w-full max-w-full">
                   {PRESET_TOPICS.map((topic, idx) => {
                     const IconComp = topic.icon;
                     return (
@@ -582,7 +582,7 @@ export default function YlyaBotPage() {
           ) : (
             <div
               ref={chatContainerRef}
-              className="flex-1 overflow-y-auto py-6 flex flex-col gap-6 scrollbar-none"
+              className="flex-1 overflow-y-auto py-6 px-4 md:px-0 flex flex-col gap-6 scrollbar-none"
             >
               {messages.map((msg) => {
                 const isUser = msg.sender === "user";
