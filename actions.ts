@@ -258,7 +258,7 @@ YOUR VOICE & PERSONALITY:
 
 YOUR RULES OF ENGAGEMENT:
 1. Rely entirely on the DYNAMIC PROFILE MATRIX and DYNAMIC PORTFOLIO MATRIX provided below to answer questions about Ylya's work history, skills, contact channels, and codebases.
-2. **Contact & Resume Requests**: If asked for Ylya's resume, LinkedIn, GitHub, email, or phone number, retrieve the exact values from the DYNAMIC PROFILE MATRIX (e.g., downloadable resume link is "${profileData?.communication.links.downloadable_resume || "https://www.hy13dev.com/Resume_Ylya_Martchenko.pdf"}") and present them clearly as professional hyperlinks. Always invite the user to also sync via [Or contact me here](/contact) to connect!
+2. **Contact & Resume Requests**: If asked for Ylya's resume, LinkedIn, GitHub, email, or phone number, retrieve the exact values from the DYNAMIC PROFILE MATRIX (e.g., downloadable resume link is "${profileData?.communication.links.downloadable_resume || "https://resume.hy13dev.com"}") and present them clearly as professional hyperlinks. Always invite the user to also sync via [Or contact me here](/contact) to connect!
 3. **CRITICAL ROUTING BOUNDARY**: Never output absolute external production web links (e.g., do not write out raw .com domains or full GitHub repo URLs) when discussing individual projects. Instead, check the project's ID parameter (e.g., 'honey-pot', 'teslimitless', or 'codemafia') and output a clean internal redirection router link exactly like this: "[View Code and Insights](/projects/repo_name)" (e.g. "[View Code and Insights](/projects/teslimitless)").
 4. **Relocation & Work Style**: If asked about relocation, target regions, or preferred work style, reference the placements matrix (e.g. Luxembourg, Switzerland, North America; Remote/Hybrid).
 5. If an implementation detail is not present in the matrices, say: "I don't have explicit repository execution records on that mechanism yet, but you can sync directly with Ylya at ylyamartchenko@gmail.com or [Or contact me here](/contact)."
@@ -356,25 +356,31 @@ ${contextString}
       stream.done();
 
       const latencyMs = Date.now() - startTime;
-      
-      supabase.from("ylyabot_logs").insert({
-        user_query: latestMessage,
-        bot_response: fullResponseText,
-        model_used: successModel,
-        latency_ms: latencyMs,
-        user_ip: ip,
-        city,
-        country,
-        region,
-        timezone,
-        postal_code: postalCode,
-        user_agent: userAgent,
-        ja4_fingerprint: ja4
-      }).then(({ error }) => {
-        if (error) {
-          console.warn("⚠️ Failed to log ylya-bot interaction to Supabase:", error.message);
-        }
-      });
+
+      supabase
+        .from("ylyabot_logs")
+        .insert({
+          user_query: latestMessage,
+          bot_response: fullResponseText,
+          model_used: successModel,
+          latency_ms: latencyMs,
+          user_ip: ip,
+          city,
+          country,
+          region,
+          timezone,
+          postal_code: postalCode,
+          user_agent: userAgent,
+          ja4_fingerprint: ja4,
+        })
+        .then(({ error }) => {
+          if (error) {
+            console.warn(
+              "⚠️ Failed to log ylya-bot interaction to Supabase:",
+              error.message,
+            );
+          }
+        });
 
       const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
       const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -385,12 +391,16 @@ ${contextString}
           redis.incr("ylyabot:metrics:total_requests"),
           redis.incr(`ylyabot:metrics:daily:${today}`),
           redis.hincrby("ylyabot:metrics:models", successModel, 1),
-          country ? redis.hincrby("ylyabot:metrics:countries", country, 1) : Promise.resolve(),
+          country
+            ? redis.hincrby("ylyabot:metrics:countries", country, 1)
+            : Promise.resolve(),
         ]).catch((redisErr) => {
-          console.warn("⚠️ Failed to increment Redis aggregate metrics:", redisErr);
+          console.warn(
+            "⚠️ Failed to increment Redis aggregate metrics:",
+            redisErr,
+          );
         });
       }
-
     } catch (err) {
       console.error("🔴 Background streaming reader loop failed:", err);
       stream.done();
