@@ -132,21 +132,30 @@ export default function YlyaBotPage() {
         ...prev,
         { id: newBotMessageId, sender: "bot", text: "", isStreaming: true },
       ]);
+      let currentText = "";
+      let lastUpdateTime = Date.now();
 
       for await (const delta of readStreamableValue(output)) {
-        if (delta !== undefined)
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === newBotMessageId
-                ? { ...msg, text: (msg.text || "") + delta }
-                : msg,
-            ),
-          );
+        if (delta !== undefined) {
+          currentText += delta;
+          const now = Date.now();
+          if (now - lastUpdateTime > 60) {
+            const textToSet = currentText;
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === newBotMessageId ? { ...msg, text: textToSet } : msg,
+              ),
+            );
+            lastUpdateTime = now;
+          }
+        }
       }
 
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.id === newBotMessageId ? { ...msg, isStreaming: false } : msg,
+          msg.id === newBotMessageId
+            ? { ...msg, text: currentText, isStreaming: false }
+            : msg,
         ),
       );
     } catch (error) {
@@ -169,283 +178,6 @@ export default function YlyaBotPage() {
         ];
       });
     }
-  };
-
-  const renderBoldText = (lineText: string): React.ReactNode[] => {
-    let cursor = 0;
-    const elements: React.ReactNode[] = [];
-
-    const parseLink = (text: string, startIdx: number) => {
-      const endLabelIdx = text.indexOf("]", startIdx + 1);
-      if (endLabelIdx === -1) return null;
-
-      let parenStartIdx = endLabelIdx + 1;
-      while (parenStartIdx < text.length && text[parenStartIdx] === " ")
-        parenStartIdx++;
-
-      if (text[parenStartIdx] === "(") {
-        const endUrlIdx = text.indexOf(")", parenStartIdx + 1);
-        if (endUrlIdx !== -1) {
-          let url = text.substring(parenStartIdx + 1, endUrlIdx).trim();
-          if (
-            (url.startsWith("'") && url.endsWith("'")) ||
-            (url.startsWith('"') && url.endsWith('"'))
-          )
-            url = url.substring(1, url.length - 1);
-
-          return {
-            label: text.substring(startIdx + 1, endLabelIdx),
-            url,
-            endIdx: endUrlIdx + 1,
-          };
-        }
-      }
-      return null;
-    };
-
-    while (cursor < lineText.length) {
-      const boldIdx = lineText.indexOf("**", cursor);
-      const codeIdx = lineText.indexOf("`", cursor);
-
-      let italicIdx = -1;
-      let startSearch = cursor;
-      while (true) {
-        const found = lineText.indexOf("*", startSearch);
-        if (found === -1) break;
-        const isBoldLeft = found > 0 && lineText[found - 1] === "*";
-        const isBoldRight =
-          found + 1 < lineText.length && lineText[found + 1] === "*";
-        if (!isBoldLeft && !isBoldRight) {
-          italicIdx = found;
-          break;
-        }
-        startSearch = found + (isBoldRight ? 2 : 1);
-      }
-
-      let nextLinkIdx = -1;
-      let linkDetails: { label: string; url: string; endIdx: number } | null =
-        null;
-
-      let currentLinkIdx = cursor;
-      while (true) {
-        const foundLinkIdx = lineText.indexOf("[", currentLinkIdx);
-        if (foundLinkIdx === -1) break;
-        const details = parseLink(lineText, foundLinkIdx);
-        if (details) {
-          linkDetails = details;
-          nextLinkIdx = foundLinkIdx;
-          break;
-        }
-        currentLinkIdx = foundLinkIdx + 1;
-      }
-
-      let winIdx = -1;
-      let winType: "bold" | "italic" | "code" | "link" | "text" = "text";
-
-      if (boldIdx !== -1) {
-        winIdx = boldIdx;
-        winType = "bold";
-      }
-      if (italicIdx !== -1 && (winIdx === -1 || italicIdx < winIdx)) {
-        winIdx = italicIdx;
-        winType = "italic";
-      }
-      if (codeIdx !== -1 && (winIdx === -1 || codeIdx < winIdx)) {
-        winIdx = codeIdx;
-        winType = "code";
-      }
-      if (nextLinkIdx !== -1 && (winIdx === -1 || nextLinkIdx < winIdx)) {
-        winIdx = nextLinkIdx;
-        winType = "link";
-      }
-
-      if (winIdx === -1) {
-        elements.push(<span key={cursor}>{lineText.substring(cursor)}</span>);
-        break;
-      }
-
-      if (winIdx > cursor) {
-        elements.push(
-          <span key={cursor}>{lineText.substring(cursor, winIdx)}</span>,
-        );
-      }
-
-      if (winType === "bold") {
-        const endBoldIdx = lineText.indexOf("**", winIdx + 2);
-        if (endBoldIdx !== -1) {
-          elements.push(
-            <strong key={winIdx} className="font-semibold text-apple-orange">
-              {renderBoldText(lineText.substring(winIdx + 2, endBoldIdx))}
-            </strong>,
-          );
-          cursor = endBoldIdx + 2;
-        } else {
-          elements.push(<span key={winIdx}>**</span>);
-          cursor = winIdx + 2;
-        }
-      } else if (winType === "italic") {
-        let endItalicIdx = -1;
-        let startSearchEnd = winIdx + 1;
-        while (true) {
-          const found = lineText.indexOf("*", startSearchEnd);
-          if (found === -1) break;
-          const isBoldLeft = found > 0 && lineText[found - 1] === "*";
-          const isBoldRight =
-            found + 1 < lineText.length && lineText[found + 1] === "*";
-          if (!isBoldLeft && !isBoldRight) {
-            endItalicIdx = found;
-            break;
-          }
-          startSearchEnd = found + (isBoldRight ? 2 : 1);
-        }
-
-        if (endItalicIdx !== -1) {
-          elements.push(
-            <em key={winIdx} className="italic text-foreground/90">
-              {renderBoldText(lineText.substring(winIdx + 1, endItalicIdx))}
-            </em>,
-          );
-          cursor = endItalicIdx + 1;
-        } else {
-          elements.push(<span key={winIdx}>*</span>);
-          cursor = winIdx + 1;
-        }
-      } else if (winType === "code") {
-        const endCodeIdx = lineText.indexOf("`", winIdx + 1);
-        if (endCodeIdx !== -1) {
-          elements.push(
-            <code
-              key={winIdx}
-              className="px-1.5 py-0.5 rounded bg-muted/80 border border-border text-apple-blue font-mono text-xs md:text-sm"
-            >
-              {lineText.substring(winIdx + 1, endCodeIdx)}
-            </code>,
-          );
-          cursor = endCodeIdx + 1;
-        } else {
-          elements.push(<span key={winIdx}>`</span>);
-          cursor = winIdx + 1;
-        }
-      } else if (winType === "link" && linkDetails) {
-        const { label, url, endIdx } = linkDetails;
-        const isInternal = url.startsWith("/");
-        if (isInternal)
-          elements.push(
-            <Link
-              href={url}
-              key={winIdx}
-              className="underline text-apple-blue hover:text-apple-blue/80 transition-colors font-medium"
-            >
-              {label}
-            </Link>,
-          );
-        else
-          elements.push(
-            <a
-              href={url}
-              key={winIdx}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline text-apple-blue hover:text-apple-blue/80 transition-colors font-medium inline-flex items-center gap-0.5"
-            >
-              {label}
-              <ExternalLink className="size-3 inline" />
-            </a>,
-          );
-        cursor = endIdx;
-      } else cursor = winIdx + 1;
-    }
-
-    return elements;
-  };
-
-  const renderMessageText = (text: string) => {
-    return text.split("\n").map((line, idx) => {
-      const trimmed = line.trim();
-
-      if (trimmed === "***" || trimmed === "---" || trimmed === "___")
-        return (
-          <hr key={idx} className="my-5 border-t border-border/40 w-full" />
-        );
-
-      if (trimmed.startsWith("###### "))
-        return (
-          <h6 key={idx} className="text-xs font-bold text-foreground mt-4 mb-2">
-            {renderBoldText(trimmed.substring(7))}
-          </h6>
-        );
-
-      if (trimmed.startsWith("##### "))
-        return (
-          <h5 key={idx} className="text-xs font-bold text-foreground mt-4 mb-2">
-            {renderBoldText(trimmed.substring(6))}
-          </h5>
-        );
-
-      if (trimmed.startsWith("#### "))
-        return (
-          <h4
-            key={idx}
-            className="text-sm font-semibold text-foreground mt-4 mb-2"
-          >
-            {renderBoldText(trimmed.substring(5))}
-          </h4>
-        );
-
-      if (trimmed.startsWith("### "))
-        return (
-          <h3
-            key={idx}
-            className="text-base font-bold text-foreground mt-4 mb-2"
-          >
-            {renderBoldText(trimmed.substring(4))}
-          </h3>
-        );
-
-      if (trimmed.startsWith("## "))
-        return (
-          <h2
-            key={idx}
-            className="text-lg font-extrabold text-foreground mt-5 mb-2"
-          >
-            {renderBoldText(trimmed.substring(3))}
-          </h2>
-        );
-
-      if (trimmed.startsWith("# "))
-        return (
-          <h1
-            key={idx}
-            className="text-xl font-extrabold text-foreground mt-6 mb-3"
-          >
-            {renderBoldText(trimmed.substring(2))}
-          </h1>
-        );
-
-      const isBullet = trimmed.startsWith("* ") || trimmed.startsWith("- ");
-      if (isBullet) {
-        const bulletText = trimmed.substring(2);
-        const content = renderBoldText(bulletText);
-        return (
-          <li
-            key={idx}
-            className="ml-5 list-disc text-sm md:text-base leading-relaxed text-foreground/95 mb-1"
-          >
-            {content}
-          </li>
-        );
-      }
-
-      const content = renderBoldText(line);
-      return (
-        <p
-          key={idx}
-          className="text-sm md:text-base leading-relaxed text-foreground/95 mb-3 min-h-4 font-normal"
-        >
-          {content}
-        </p>
-      );
-    });
   };
 
   return (
@@ -679,3 +411,275 @@ export default function YlyaBotPage() {
     </section>
   );
 }
+
+const renderBoldText = (lineText: string): React.ReactNode[] => {
+  let cursor = 0;
+  const elements: React.ReactNode[] = [];
+
+  const parseLink = (text: string, startIdx: number) => {
+    const endLabelIdx = text.indexOf("]", startIdx + 1);
+    if (endLabelIdx === -1) return null;
+
+    let parenStartIdx = endLabelIdx + 1;
+    while (parenStartIdx < text.length && text[parenStartIdx] === " ")
+      parenStartIdx++;
+
+    if (text[parenStartIdx] === "(") {
+      const endUrlIdx = text.indexOf(")", parenStartIdx + 1);
+      if (endUrlIdx !== -1) {
+        let url = text.substring(parenStartIdx + 1, endUrlIdx).trim();
+        if (
+          (url.startsWith("'") && url.endsWith("'")) ||
+          (url.startsWith('"') && url.endsWith('"'))
+        )
+          url = url.substring(1, url.length - 1);
+
+        return {
+          label: text.substring(startIdx + 1, endLabelIdx),
+          url,
+          endIdx: endUrlIdx + 1,
+        };
+      }
+    }
+    return null;
+  };
+
+  while (cursor < lineText.length) {
+    const boldIdx = lineText.indexOf("**", cursor);
+    const codeIdx = lineText.indexOf("`", cursor);
+
+    let italicIdx = -1;
+    let startSearch = cursor;
+    while (true) {
+      const found = lineText.indexOf("*", startSearch);
+      if (found === -1) break;
+      const isBoldLeft = found > 0 && lineText[found - 1] === "*";
+      const isBoldRight =
+        found + 1 < lineText.length && lineText[found + 1] === "*";
+      if (!isBoldLeft && !isBoldRight) {
+        italicIdx = found;
+        break;
+      }
+      startSearch = found + (isBoldRight ? 2 : 1);
+    }
+
+    let nextLinkIdx = -1;
+    let linkDetails: { label: string; url: string; endIdx: number } | null =
+      null;
+
+    let currentLinkIdx = cursor;
+    while (true) {
+      const foundLinkIdx = lineText.indexOf("[", currentLinkIdx);
+      if (foundLinkIdx === -1) break;
+      const details = parseLink(lineText, foundLinkIdx);
+      if (details) {
+        linkDetails = details;
+        nextLinkIdx = foundLinkIdx;
+        break;
+      }
+      currentLinkIdx = foundLinkIdx + 1;
+    }
+
+    let winIdx = -1;
+    let winType: "bold" | "italic" | "code" | "link" | "text" = "text";
+
+    if (boldIdx !== -1) {
+      winIdx = boldIdx;
+      winType = "bold";
+    }
+    if (italicIdx !== -1 && (winIdx === -1 || italicIdx < winIdx)) {
+      winIdx = italicIdx;
+      winType = "italic";
+    }
+    if (codeIdx !== -1 && (winIdx === -1 || codeIdx < winIdx)) {
+      winIdx = codeIdx;
+      winType = "code";
+    }
+    if (nextLinkIdx !== -1 && (winIdx === -1 || nextLinkIdx < winIdx)) {
+      winIdx = nextLinkIdx;
+      winType = "link";
+    }
+
+    if (winIdx === -1) {
+      elements.push(<span key={cursor}>{lineText.substring(cursor)}</span>);
+      break;
+    }
+
+    if (winIdx > cursor) {
+      elements.push(
+        <span key={cursor}>{lineText.substring(cursor, winIdx)}</span>,
+      );
+    }
+
+    if (winType === "bold") {
+      const endBoldIdx = lineText.indexOf("**", winIdx + 2);
+      if (endBoldIdx !== -1) {
+        elements.push(
+          <strong key={winIdx} className="font-semibold text-apple-orange">
+            {renderBoldText(lineText.substring(winIdx + 2, endBoldIdx))}
+          </strong>,
+        );
+        cursor = endBoldIdx + 2;
+      } else {
+        elements.push(<span key={winIdx}>**</span>);
+        cursor = winIdx + 2;
+      }
+    } else if (winType === "italic") {
+      let endItalicIdx = -1;
+      let startSearchEnd = winIdx + 1;
+      while (true) {
+        const found = lineText.indexOf("*", startSearchEnd);
+        if (found === -1) break;
+        const isBoldLeft = found > 0 && lineText[found - 1] === "*";
+        const isBoldRight =
+          found + 1 < lineText.length && lineText[found + 1] === "*";
+        if (!isBoldLeft && !isBoldRight) {
+          endItalicIdx = found;
+          break;
+        }
+        startSearchEnd = found + (isBoldRight ? 2 : 1);
+      }
+
+      if (endItalicIdx !== -1) {
+        elements.push(
+          <em key={winIdx} className="italic text-foreground/90">
+            {renderBoldText(lineText.substring(winIdx + 1, endItalicIdx))}
+          </em>,
+        );
+        cursor = endItalicIdx + 1;
+      } else {
+        elements.push(<span key={winIdx}>*</span>);
+        cursor = winIdx + 1;
+      }
+    } else if (winType === "code") {
+      const endCodeIdx = lineText.indexOf("`", winIdx + 1);
+      if (endCodeIdx !== -1) {
+        elements.push(
+          <code
+            key={winIdx}
+            className="px-1.5 py-0.5 rounded bg-muted/80 border border-border text-apple-blue font-mono text-xs md:text-sm"
+          >
+            {lineText.substring(winIdx + 1, endCodeIdx)}
+          </code>,
+        );
+        cursor = endCodeIdx + 1;
+      } else {
+        elements.push(<span key={winIdx}>`</span>);
+        cursor = winIdx + 1;
+      }
+    } else if (winType === "link" && linkDetails) {
+      const { label, url, endIdx } = linkDetails;
+      const isInternal = url.startsWith("/");
+      if (isInternal)
+        elements.push(
+          <Link
+            href={url}
+            key={winIdx}
+            className="underline text-apple-blue hover:text-apple-blue/80 transition-colors font-medium"
+          >
+            {label}
+          </Link>,
+        );
+      else
+        elements.push(
+          <a
+            href={url}
+            key={winIdx}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline text-apple-blue hover:text-apple-blue/80 transition-colors font-medium inline-flex items-center gap-0.5"
+          >
+            {label}
+            <ExternalLink className="size-3 inline" />
+          </a>,
+        );
+      cursor = endIdx;
+    } else cursor = winIdx + 1;
+  }
+
+  return elements;
+};
+
+const renderMessageText = (text: string) => {
+  return text.split("\n").map((line, idx) => {
+    const trimmed = line.trim();
+
+    if (trimmed === "***" || trimmed === "---" || trimmed === "___")
+      return <hr key={idx} className="my-5 border-t border-border/40 w-full" />;
+
+    if (trimmed.startsWith("###### "))
+      return (
+        <h6 key={idx} className="text-xs font-bold text-foreground mt-4 mb-2">
+          {renderBoldText(trimmed.substring(7))}
+        </h6>
+      );
+
+    if (trimmed.startsWith("##### "))
+      return (
+        <h5 key={idx} className="text-xs font-bold text-foreground mt-4 mb-2">
+          {renderBoldText(trimmed.substring(6))}
+        </h5>
+      );
+
+    if (trimmed.startsWith("#### "))
+      return (
+        <h4
+          key={idx}
+          className="text-sm font-semibold text-foreground mt-4 mb-2"
+        >
+          {renderBoldText(trimmed.substring(5))}
+        </h4>
+      );
+
+    if (trimmed.startsWith("### "))
+      return (
+        <h3 key={idx} className="text-base font-bold text-foreground mt-4 mb-2">
+          {renderBoldText(trimmed.substring(4))}
+        </h3>
+      );
+
+    if (trimmed.startsWith("## "))
+      return (
+        <h2
+          key={idx}
+          className="text-lg font-extrabold text-foreground mt-5 mb-2"
+        >
+          {renderBoldText(trimmed.substring(3))}
+        </h2>
+      );
+
+    if (trimmed.startsWith("# "))
+      return (
+        <h1
+          key={idx}
+          className="text-xl font-extrabold text-foreground mt-6 mb-3"
+        >
+          {renderBoldText(trimmed.substring(2))}
+        </h1>
+      );
+
+    const isBullet = trimmed.startsWith("* ") || trimmed.startsWith("- ");
+    if (isBullet) {
+      const bulletText = trimmed.substring(2);
+      const content = renderBoldText(bulletText);
+      return (
+        <li
+          key={idx}
+          className="ml-5 list-disc text-sm md:text-base leading-relaxed text-foreground/95 mb-1"
+        >
+          {content}
+        </li>
+      );
+    }
+
+    const content = renderBoldText(line);
+    return (
+      <p
+        key={idx}
+        className="text-sm md:text-base leading-relaxed text-foreground/95 mb-3 min-h-4 font-normal"
+      >
+        {content}
+      </p>
+    );
+  });
+};

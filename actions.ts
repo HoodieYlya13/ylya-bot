@@ -10,27 +10,11 @@ import { checkRateLimit } from "@/lib/ratelimit";
 import { cookies, headers } from "next/headers";
 import { Redis } from "@upstash/redis";
 
-import fs from "fs";
-import path from "path";
+const apiKey = process.env.GEMINI_API_KEY || "";
 
 function getGoogleClient() {
-  let apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    try {
-      const envPath = path.join(process.cwd(), ".env.local");
-      if (fs.existsSync(envPath)) {
-        const envContent = fs.readFileSync(envPath, "utf8");
-        const match = envContent.match(/GEMINI_API_KEY="?([^"\n\s]+)"?/);
-        if (match && match[1]) {
-          apiKey = match[1];
-        }
-      }
-    } catch {
-      // Ignore fallback failures
-    }
-  }
   return createGoogleGenerativeAI({
-    apiKey: apiKey || "",
+    apiKey,
   });
 }
 
@@ -136,20 +120,6 @@ export async function askYlyaBot(input: {
   const postalCode = headerStore.get("x-vercel-ip-postal-code") || "";
   const userAgent = headerStore.get("user-agent") || "";
   const ja4 = headerStore.get("x-vercel-ja4-digest") || "";
-
-  const apiKey =
-    process.env.GEMINI_API_KEY ||
-    (() => {
-      try {
-        const envPath = path.join(process.cwd(), ".env.local");
-        if (fs.existsSync(envPath)) {
-          const envContent = fs.readFileSync(envPath, "utf8");
-          const match = envContent.match(/GEMINI_API_KEY="?([^"\n\s]+)"?/);
-          if (match && match[1]) return match[1];
-        }
-      } catch {}
-      return "";
-    })();
 
   const embeddingUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=${apiKey}`;
 
