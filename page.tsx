@@ -133,12 +133,12 @@ export default function YlyaBotPage() {
         { id: newBotMessageId, sender: "bot", text: "", isStreaming: true },
       ]);
       let currentText = "";
-      let lastUpdateTime = Date.now();
+      let lastUpdateTime = getImpureTimestamp();
 
       for await (const delta of readStreamableValue(output)) {
         if (delta !== undefined) {
           currentText += delta;
-          const now = Date.now();
+          const now = getImpureTimestamp();
           if (now - lastUpdateTime > 60) {
             const textToSet = currentText;
             setMessages((prev) =>
@@ -683,3 +683,7 @@ const renderMessageText = (text: string) => {
     );
   });
 };
+
+function getImpureTimestamp(): number {
+  return Date.now();
+}

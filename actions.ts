@@ -9,6 +9,7 @@ import { z } from "zod";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { cookies, headers } from "next/headers";
 import { Redis } from "@upstash/redis";
+import { after } from "next/server";
 
 const apiKey = process.env.GEMINI_API_KEY || "";
 
@@ -122,6 +123,73 @@ export async function askYlyaBot(input: {
   const ja4 = headerStore.get("x-vercel-ja4-digest") || "";
 
   const embeddingUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=${apiKey}`;
+
+  let resolveStreamFinished: (
+    value: { text: string; model: string } | null,
+  ) => void = () => {};
+  const streamFinishedPromise = new Promise<{
+    text: string;
+    model: string;
+  } | null>((resolve) => {
+    resolveStreamFinished = resolve;
+  });
+
+  after(async () => {
+    try {
+      const result = await streamFinishedPromise;
+      if (!result) return;
+
+      const { text: fullResponseText, model: successModel } = result;
+      const latencyMs = Date.now() - startTime;
+
+      await supabase
+        .from("ylyabot_logs")
+        .insert({
+          user_query: latestMessage,
+          bot_response: fullResponseText,
+          model_used: successModel,
+          latency_ms: latencyMs,
+          user_ip: ip,
+          city,
+          country,
+          region,
+          timezone,
+          postal_code: postalCode,
+          user_agent: userAgent,
+          ja4_fingerprint: ja4,
+        })
+        .then(({ error }) => {
+          if (error) {
+            console.warn(
+              "⚠️ Failed to log ylya-bot interaction to Supabase in background:",
+              error.message,
+            );
+          }
+        });
+
+      const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+      const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+      if (redisUrl && redisToken) {
+        const redis = new Redis({ url: redisUrl, token: redisToken });
+        const today = new Date().toISOString().split("T")[0];
+        await Promise.all([
+          redis.incr("ylyabot:metrics:total_requests"),
+          redis.incr(`ylyabot:metrics:daily:${today}`),
+          redis.hincrby("ylyabot:metrics:models", successModel, 1),
+          country
+            ? redis.hincrby("ylyabot:metrics:countries", country, 1)
+            : Promise.resolve(),
+        ]).catch((redisErr) => {
+          console.warn(
+            "⚠️ Failed to increment Redis aggregate metrics in background:",
+            redisErr,
+          );
+        });
+      }
+    } catch (afterErr) {
+      console.warn("⚠️ Error in after() background handler:", afterErr);
+    }
+  });
 
   let profileData = null;
   let contextString =
@@ -324,56 +392,11 @@ ${contextString}
         }
       }
       stream.done();
-
-      const latencyMs = Date.now() - startTime;
-
-      supabase
-        .from("ylyabot_logs")
-        .insert({
-          user_query: latestMessage,
-          bot_response: fullResponseText,
-          model_used: successModel,
-          latency_ms: latencyMs,
-          user_ip: ip,
-          city,
-          country,
-          region,
-          timezone,
-          postal_code: postalCode,
-          user_agent: userAgent,
-          ja4_fingerprint: ja4,
-        })
-        .then(({ error }) => {
-          if (error) {
-            console.warn(
-              "⚠️ Failed to log ylya-bot interaction to Supabase:",
-              error.message,
-            );
-          }
-        });
-
-      const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
-      const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
-      if (redisUrl && redisToken) {
-        const redis = new Redis({ url: redisUrl, token: redisToken });
-        const today = new Date().toISOString().split("T")[0];
-        Promise.all([
-          redis.incr("ylyabot:metrics:total_requests"),
-          redis.incr(`ylyabot:metrics:daily:${today}`),
-          redis.hincrby("ylyabot:metrics:models", successModel, 1),
-          country
-            ? redis.hincrby("ylyabot:metrics:countries", country, 1)
-            : Promise.resolve(),
-        ]).catch((redisErr) => {
-          console.warn(
-            "⚠️ Failed to increment Redis aggregate metrics:",
-            redisErr,
-          );
-        });
-      }
+      resolveStreamFinished({ text: fullResponseText, model: successModel });
     } catch (err) {
       console.error("🔴 Background streaming reader loop failed:", err);
       stream.done();
+      resolveStreamFinished(null);
     } finally {
       try {
         activeReader.releaseLock();
