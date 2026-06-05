@@ -412,6 +412,18 @@ export default function YlyaBotPage() {
   );
 }
 
+const findItalicAsterisk = (text: string, startIndex: number): number => {
+  let start = startIndex;
+  while (true) {
+    const found = text.indexOf("*", start);
+    if (found === -1) return -1;
+    const isBoldLeft = found > 0 && text[found - 1] === "*";
+    const isBoldRight = found + 1 < text.length && text[found + 1] === "*";
+    if (!isBoldLeft && !isBoldRight) return found;
+    start = found + (isBoldRight ? 2 : 1);
+  }
+};
+
 const renderBoldText = (lineText: string): React.ReactNode[] => {
   let cursor = 0;
   const elements: React.ReactNode[] = [];
@@ -448,20 +460,7 @@ const renderBoldText = (lineText: string): React.ReactNode[] => {
     const boldIdx = lineText.indexOf("**", cursor);
     const codeIdx = lineText.indexOf("`", cursor);
 
-    let italicIdx = -1;
-    let startSearch = cursor;
-    while (true) {
-      const found = lineText.indexOf("*", startSearch);
-      if (found === -1) break;
-      const isBoldLeft = found > 0 && lineText[found - 1] === "*";
-      const isBoldRight =
-        found + 1 < lineText.length && lineText[found + 1] === "*";
-      if (!isBoldLeft && !isBoldRight) {
-        italicIdx = found;
-        break;
-      }
-      startSearch = found + (isBoldRight ? 2 : 1);
-    }
+    const italicIdx = findItalicAsterisk(lineText, cursor);
 
     let nextLinkIdx = -1;
     let linkDetails: { label: string; url: string; endIdx: number } | null =
@@ -525,20 +524,7 @@ const renderBoldText = (lineText: string): React.ReactNode[] => {
         cursor = winIdx + 2;
       }
     } else if (winType === "italic") {
-      let endItalicIdx = -1;
-      let startSearchEnd = winIdx + 1;
-      while (true) {
-        const found = lineText.indexOf("*", startSearchEnd);
-        if (found === -1) break;
-        const isBoldLeft = found > 0 && lineText[found - 1] === "*";
-        const isBoldRight =
-          found + 1 < lineText.length && lineText[found + 1] === "*";
-        if (!isBoldLeft && !isBoldRight) {
-          endItalicIdx = found;
-          break;
-        }
-        startSearchEnd = found + (isBoldRight ? 2 : 1);
-      }
+      const endItalicIdx = findItalicAsterisk(lineText, winIdx + 1);
 
       if (endItalicIdx !== -1) {
         elements.push(
