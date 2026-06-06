@@ -100,6 +100,7 @@ export async function askYlyaBot(input: {
   }>;
 }) {
   const startTime = Date.now();
+  let firstTokenLatencyMs = 0;
 
   const validated = askYlyaBotInputSchema.safeParse(input);
   if (!validated.success) throw new Error("Invalid request payload");
@@ -140,7 +141,7 @@ export async function askYlyaBot(input: {
       if (!result) return;
 
       const { text: fullResponseText, model: successModel } = result;
-      const latencyMs = Date.now() - startTime;
+      const latencyMs = firstTokenLatencyMs || (Date.now() - startTime);
 
       await supabase
         .from("ylyabot_logs")
@@ -336,6 +337,7 @@ ${contextString}
 
       const reader = result.textStream.getReader();
       const { value } = await reader.read();
+      firstTokenLatencyMs = Date.now() - startTime;
 
       successModel = model;
       activeReader = reader;
