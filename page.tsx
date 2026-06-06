@@ -586,8 +586,28 @@ const renderBoldText = (lineText: string): React.ReactNode[] => {
   return elements;
 };
 
+const replaceLatexSymbols = (text: string): string => {
+  if (!text) return text;
+  return text
+    .replace(/\$\s*\\rightarrow\s*\$/g, "→")
+    .replace(/\\rightarrow\b/g, "→")
+    .replace(/\$\s*\\to\s*\$/g, "→")
+    .replace(/\\to\b/g, "→")
+    .replace(/\$\s*\\Rightarrow\s*\$/g, "⇒")
+    .replace(/\\Rightarrow\b/g, "⇒")
+    .replace(/\$\s*\\leftarrow\s*\$/g, "←")
+    .replace(/\\leftarrow\b/g, "←")
+    .replace(/\$\s*\\leftrightarrow\s*\$/g, "↔")
+    .replace(/\\leftrightarrow\b/g, "↔")
+    .replace(/\$\s*\\Leftrightarrow\s*\$/g, "⇔")
+    .replace(/\\Leftrightarrow\b/g, "⇔")
+    .replace(/\$\s*\\implies\s*\$/g, "⇒")
+    .replace(/\\implies\b/g, "⇒");
+};
+
 const renderMessageText = (text: string) => {
-  return text.split("\n").map((line, idx) => {
+  const sanitizedText = replaceLatexSymbols(text);
+  return sanitizedText.split("\n").map((line, idx) => {
     const trimmed = line.trim();
 
     if (trimmed === "***" || trimmed === "---" || trimmed === "___")
