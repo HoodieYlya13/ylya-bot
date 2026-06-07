@@ -10,6 +10,7 @@ import { checkRateLimit } from "@/lib/ratelimit";
 import { cookies, headers } from "next/headers";
 import { Redis } from "@upstash/redis";
 import { after } from "next/server";
+import { MODELS_ORDER } from "./constants";
 
 const apiKey = process.env.GEMINI_API_KEY || "";
 
@@ -18,14 +19,6 @@ function getGoogleClient() {
     apiKey,
   });
 }
-
-const MODELS = [
-  "gemini-3.1-flash-lite",
-  "gemini-3.5-flash",
-  "gemini-2.5-flash",
-  "gemma-4-31b-it",
-  "gemini-flash-latest",
-];
 
 function getPacificMidnightExpiry(): Date {
   const now = new Date();
@@ -311,7 +304,7 @@ ${contextString}
 
   const cookieStore = await cookies();
 
-  const activeModels = MODELS.filter((model) => {
+  const activeModels = MODELS_ORDER.filter((model) => {
     return !cookieStore.get(`ylyabot_exhausted_${model}`);
   });
 

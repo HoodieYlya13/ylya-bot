@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { logoutAction } from "./actions";
 import Link from "next/link";
+import { MODELS_ORDER } from "../constants";
 
 export interface LogEntry {
   id: string;
@@ -93,13 +94,6 @@ export default function MetricsDashboard({
   const modelsDistribution = (() => {
     const counts: Record<string, number> = {};
 
-    const MODELS_ORDER = [
-      "gemini-flash-latest",
-      "gemini-3.5-flash",
-      "gemini-2.5-flash",
-      "gemini-3.1-flash-lite",
-      "gemma-4-31b-it",
-    ];
     MODELS_ORDER.forEach((m) => {
       counts[m] = 0;
     });
