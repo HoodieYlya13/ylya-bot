@@ -32,7 +32,8 @@
     "Implemented a Time-Zone Aware Cookie Exclusion system expiring at exactly midnight Pacific Time (America/Los_Angeles) to cache quota-exhausted endpoints, preventing redundant and failing API calls.",
     "Designed a high-performance vector matching function inside Supabase using PL/pgSQL, computing multi-dimensional cosine distance metrics natively on the database hardware layer.",
     "Built a mobile-first, high-fidelity chat dashboard utilizing the Vercel AI SDK, optimizing response times to sub-second Time-To-First-Token on developer-tier APIs—architected to scale under 150ms using enterprise Context Caching—and integrated a 60ms batching state hook to buffer streaming tokens and prevent browser thread lockup.",
-    "Developed a Secure Telemetry & Real-Time Analytics Dashboard (/ylya-bot/metrics) protected by stateless cryptographic JWT authentication, combining live PostgreSQL database logs with high-performance rolling Redis aggregate metrics, and offloaded all runtime write telemetry to the Next.js `after()` API to release HTTP streams instantly."
+    "Developed a Secure Telemetry & Real-Time Analytics Dashboard (/ylya-bot/metrics) protected by stateless cryptographic JWT authentication, combining live PostgreSQL database logs with high-performance rolling Redis aggregate metrics, and offloaded all runtime write telemetry to the Next.js `after()` API to release HTTP streams instantly.",
+    "Engineered an automated garbage collection routine in the ETL pipeline that queries the GitHub API at build time and on a daily cron schedule, purging orphaned vector embeddings from Supabase when repositories are deleted or made private."
   ],
   "measurable_metrics": {
     "execution_latency": "Sub-second (under 900ms) Time-To-First-Token streaming on free-tier APIs, theoretically scalable to under 150ms with enterprise Context Caching; sub-10ms PostgreSQL vector retrieval execution speed; 0ms runtime write overhead by backgrounding telemetry transactions via the Next.js `after()` API.",
@@ -47,9 +48,9 @@
       "inline_image": ""
     },
     {
-      "situation": "Traditional RAG pipelines require continuous polling servers or expensive always-on extraction endpoints to index portfolio data changes.",
-      "action": "Engineered an event-driven ingestion script executed purely within serverless ephemeral GitHub Actions runners, triggered instantly by code pushes.",
-      "result": "Completely eliminated runtime compute overhead and reduced system operational maintenance costs to zero.",
+      "situation": "Traditional RAG pipelines require continuous polling servers or expensive always-on extraction endpoints to index portfolio data changes, and often leak stale data when repositories are deleted or made private on the version control layer.",
+      "action": "Engineered an event-driven ingestion script executed purely within serverless ephemeral GitHub Actions runners triggered instantly by code pushes, and integrated an automated pruning mechanism that queries the GitHub API to garbage-collect orphaned database vectors.",
+      "result": "Completely eliminated runtime compute overhead, ensured the vector store remains 100% synchronized with active projects, and reduced operational maintenance costs to zero.",
       "inline_image": ""
     },
     {

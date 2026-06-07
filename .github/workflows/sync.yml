@@ -16,6 +16,8 @@ on:
     paths:
       - "portfolio.json"
   workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
 
 jobs:
   ingest-data:

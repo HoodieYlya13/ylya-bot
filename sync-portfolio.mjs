@@ -118,15 +118,69 @@ async function runPipeline() {
       if (error) throw error;
     }
 
-    // Automatically update README.md with the correct number of repositories from Supabase
     try {
-      console.log(`🔍 [sync-portfolio] Querying Supabase for total unique indexed repositories...`);
+      console.log(
+        `🧹 [sync-portfolio] Starting garbage collection of orphaned project vectors...`,
+      );
+      const githubRes = await fetch(
+        "https://api.github.com/users/HoodieYlya13/repos?per_page=100",
+        {
+          headers: { "User-Agent": "YlyaBot-Sync-Engine" },
+        },
+      );
+      if (githubRes.ok) {
+        const repos = await githubRes.json();
+        const activeRepoNames = new Set(repos.map((r) => r.name.toLowerCase()));
+
+        const { data: dbRepos, error: dbErr } = await supabase
+          .from("portfolio_embeddings")
+          .select("project_id");
+
+        if (!dbErr && dbRepos) {
+          const dbProjectIds = [
+            ...new Set(dbRepos.map((item) => item.project_id)),
+          ];
+
+          for (const dbId of dbProjectIds) {
+            const lowerDbId = dbId.toLowerCase();
+            if (!activeRepoNames.has(lowerDbId) && lowerDbId !== "portfolio") {
+              console.log(
+                `🗑️ [sync-portfolio] Pruning orphaned project vectors for: ${dbId}`,
+              );
+              const { error: pruneErr } = await supabase
+                .from("portfolio_embeddings")
+                .delete()
+                .eq("project_id", dbId);
+              if (pruneErr) {
+                console.error(
+                  `❌ [sync-portfolio] Failed to prune ${dbId}:`,
+                  pruneErr.message,
+                );
+              }
+            }
+          }
+        } else if (dbErr) throw dbErr;
+      } else
+        console.warn(
+          `⚠️ [sync-portfolio] GitHub API returned status ${githubRes.status}, skipping pruning to avoid false deletions.`,
+        );
+    } catch (gcErr) {
+      console.warn(
+        "⚠️ [sync-portfolio] Garbage collection warning:",
+        gcErr.message,
+      );
+    }
+
+    try {
+      console.log(
+        `🔍 [sync-portfolio] Querying Supabase for total unique indexed repositories...`,
+      );
       const { data: uniqueRepos, error: dbErr } = await supabase
         .from("portfolio_embeddings")
         .select("project_id");
-      
+
       if (!dbErr && uniqueRepos) {
-        const uniqueIds = new Set(uniqueRepos.map(item => item.project_id));
+        const uniqueIds = new Set(uniqueRepos.map((item) => item.project_id));
         const totalCount = uniqueIds.size;
 
         if (totalCount > 0) {
@@ -136,15 +190,20 @@ async function runPipeline() {
             let readmeContent = fs.readFileSync(readmePath, "utf8");
             const updatedReadme = readmeContent.replace(
               /Repos\[\("📦 \d+ GitHub Repositories<br>\(Ecosystem Matrices\)"\)\]/g,
-              `Repos[("📦 ${totalCount} GitHub Repositories<br>(Ecosystem Matrices)")]`
+              `Repos[("📦 ${totalCount} GitHub Repositories<br>(Ecosystem Matrices)")]`,
             );
             fs.writeFileSync(readmePath, updatedReadme, "utf8");
-            console.log(`⚙️ [sync-portfolio] Automatically updated README.md with current repo count: ${totalCount}`);
+            console.log(
+              `⚙️ [sync-portfolio] Automatically updated README.md with current repo count: ${totalCount}`,
+            );
           }
         }
       } else if (dbErr) throw dbErr;
     } catch (readmeErr) {
-      console.warn("⚠️ [sync-portfolio] Failed to automatically update README.md repo count:", readmeErr.message);
+      console.warn(
+        "⚠️ [sync-portfolio] Failed to automatically update README.md repo count:",
+        readmeErr.message,
+      );
     }
 
     console.log(`✅ Pipeline conversion run complete for: ${projectId}.`);

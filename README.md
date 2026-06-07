@@ -115,10 +115,12 @@ Every repository across my GitHub account contains an exhaustive, standardized `
 }
 ```
 
-### 2. CI/CD Automated Processing
-When a repository codebase is pushed or a pull request is merged into `main`, a custom GitHub Action workflow triggers. This workflow runs an automated script that pulls a centralized parser from my `ylya-bot` master repository, splitting the manifest data into 6 highly contextual markdown paragraphs mapped to strict data segments (Overview, Benchmarks, STAR Challenges, Systems Architecture).
+### 2. CI/CD Automated Processing & Garbage Collection
+When a repository codebase is pushed, a pull request is merged, or the daily cron schedule (at midnight UTC) triggers, a custom GitHub Action workflow executes. This workflow runs an automated script that pulls a centralized parser from my `ylya-bot` master repository, splitting the manifest data into 6 highly contextual markdown paragraphs mapped to strict data segments (Overview, Benchmarks, STAR Challenges, Systems Architecture).
 
-The script then requests a compressed 768-dimensional mathematical vector matrix from Google AI Studio's `gemini-embedding-2` engine and uses an idempotent SQL `.upsert()` call to securely seed a remote Supabase PostgreSQL database instance.
+The script requests a compressed 768-dimensional mathematical vector matrix from Google AI Studio's `gemini-embedding-2` engine and uses an idempotent SQL `.upsert()` call to securely seed a remote Supabase PostgreSQL database instance. 
+
+To prevent data leaks from deleted or privatized projects, the ingestion pipeline queries the public GitHub API to verify all active repositories, automatically running a garbage collection sweep to prune orphaned vector embeddings from the Supabase database and dynamically updating the repository counters inside this README's architecture diagram.
 
 ### 3. Stored DB-Level Match Execution (RPC)
 When a user submits a prompt, rather than wasting memory calculating array values inside our serverless runtime environment, the system utilizes a custom native PostgreSQL Remote Procedure Call (RPC) function to calculate Cosine-Distance Math directly on the database cluster:
