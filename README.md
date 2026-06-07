@@ -26,7 +26,7 @@ YlyaBot does not rely on generic pre-trained LLM assumptions. Instead, it utiliz
 flowchart TD
     %% Core Inputs
     ProfileJSON[("📄 profile.json<br>(Central SSoT Repo)")]
-    Repos[("📦 15 GitHub Repositories<br>(Ecosystem Matrices)")]
+    Repos[("📦 14 GitHub Repositories<br>(Ecosystem Matrices)")]
 
     %% Ingestion Pipeline
     subgraph IngestionPipeline ["🧬 Codebase Ingestion & Vectorization Engine"]
@@ -42,7 +42,7 @@ flowchart TD
         QueryEmbed["⚡ Query Vectorization (768-dim)"]
         SemanticSearch["🔍 Stored SQL RPC match_portfolio_embeddings"]
         SysPrompt["🛠️ Markdown System Prompt Weaver"]
-        LLM["🤖 Inference Engine (gemini-2.5-flash)"]
+        LLM["🤖 Inference Engine (gemini-3.1-flash-lite)"]
         StreamResponse["🛰️ Text Streams Response Output"]
     end
 
@@ -152,11 +152,11 @@ The backend uses a parallel data architecture encapsulated entirely within a mod
 To guarantee maximum uptime and complete resilience against Gemini API free-tier rate limits or quota exhaustions, the engine implements a **5-Tier Priority Fallback Hierarchy** with **Time-Zone Aware Cookie Exclusions**:
 
 1. **Prioritized Model Array:**
-   - **`gemini-flash-latest`** (Tier 1: Default)
+   - **`gemini-3.1-flash-lite`** (Tier 1: Default)
    - **`gemini-3.5-flash`** (Tier 2)
    - **`gemini-2.5-flash`** (Tier 3)
-   - **`gemini-3.1-flash-lite`** (Tier 4)
-   - **`gemma-4-31b-it`** (Tier 5)
+   - **`gemma-4-31b-it`** (Tier 4)
+   - **`gemini-flash-latest`** (Tier 5)
 
 2. **Pre-Flight Cookie-Exclusion Filter:**
    Before executing the API call, the action filters active models against awaited HTTP cookies (`cookies()`). Any model that previously recorded a quota exhaustion failure is excluded.

@@ -20,11 +20,11 @@ function getGoogleClient() {
 }
 
 const MODELS = [
-  "gemini-flash-latest",
+  "gemini-3.1-flash-lite",
   "gemini-3.5-flash",
   "gemini-2.5-flash",
-  "gemini-3.1-flash-lite",
   "gemma-4-31b-it",
+  "gemini-flash-latest",
 ];
 
 function getPacificMidnightExpiry(): Date {
@@ -141,7 +141,7 @@ export async function askYlyaBot(input: {
       if (!result) return;
 
       const { text: fullResponseText, model: successModel } = result;
-      const latencyMs = firstTokenLatencyMs || (Date.now() - startTime);
+      const latencyMs = firstTokenLatencyMs || Date.now() - startTime;
 
       await supabase
         .from("ylyabot_logs")

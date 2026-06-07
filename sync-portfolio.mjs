@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
 if (
   !process.env.SUPABASE_URL ||
@@ -115,6 +116,35 @@ async function runPipeline() {
       });
 
       if (error) throw error;
+    }
+
+    // Automatically update README.md with the correct number of repositories from Supabase
+    try {
+      console.log(`🔍 [sync-portfolio] Querying Supabase for total unique indexed repositories...`);
+      const { data: uniqueRepos, error: dbErr } = await supabase
+        .from("portfolio_embeddings")
+        .select("project_id");
+      
+      if (!dbErr && uniqueRepos) {
+        const uniqueIds = new Set(uniqueRepos.map(item => item.project_id));
+        const totalCount = uniqueIds.size;
+
+        if (totalCount > 0) {
+          const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+          const readmePath = path.join(scriptDir, "README.md");
+          if (fs.existsSync(readmePath)) {
+            let readmeContent = fs.readFileSync(readmePath, "utf8");
+            const updatedReadme = readmeContent.replace(
+              /Repos\[\("📦 \d+ GitHub Repositories<br>\(Ecosystem Matrices\)"\)\]/g,
+              `Repos[("📦 ${totalCount} GitHub Repositories<br>(Ecosystem Matrices)")]`
+            );
+            fs.writeFileSync(readmePath, updatedReadme, "utf8");
+            console.log(`⚙️ [sync-portfolio] Automatically updated README.md with current repo count: ${totalCount}`);
+          }
+        }
+      } else if (dbErr) throw dbErr;
+    } catch (readmeErr) {
+      console.warn("⚠️ [sync-portfolio] Failed to automatically update README.md repo count:", readmeErr.message);
     }
 
     console.log(`✅ Pipeline conversion run complete for: ${projectId}.`);
