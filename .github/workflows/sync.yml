@@ -20,6 +20,8 @@ on:
 jobs:
   ingest-data:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout Repository Codebase
@@ -44,3 +46,16 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: node sync-portfolio.mjs
+
+      - name: Commit and Push Updated README
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          if [ -n "$(git status --porcelain README.md)" ]; then
+            echo "📝 README.md has changed, committing and pushing..."
+            git add README.md
+            git commit -m "chore: auto-update README.md repo count [skip ci]"
+            git push
+          else
+            echo "✅ No changes to README.md detected."
+          fi
