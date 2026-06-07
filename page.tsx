@@ -122,7 +122,7 @@ export default function YlyaBotPage() {
           content: m.text,
         }));
 
-      let output;
+      let output!: Awaited<ReturnType<typeof askYlyaBot>>["output"];
       let attempts = 0;
       const maxAttempts = 2;
 
@@ -131,7 +131,7 @@ export default function YlyaBotPage() {
           attempts++;
           output = await Promise.race([
             askYlyaBot({ messages: apiMessages }).then((r) => r.output),
-            new Promise<unknown>((_, reject) =>
+            new Promise<Awaited<ReturnType<typeof askYlyaBot>>["output"]>((_, reject) =>
               setTimeout(() => reject(new Error("CLIENT_TIMEOUT")), 9500),
             ),
           ]);
