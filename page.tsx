@@ -122,7 +122,29 @@ export default function YlyaBotPage() {
           content: m.text,
         }));
 
-      const { output } = await askYlyaBot({ messages: apiMessages });
+      let output;
+      let attempts = 0;
+      const maxAttempts = 2;
+
+      while (attempts < maxAttempts) {
+        try {
+          attempts++;
+          output = await Promise.race([
+            askYlyaBot({ messages: apiMessages }).then((r) => r.output),
+            new Promise<unknown>((_, reject) =>
+              setTimeout(() => reject(new Error("CLIENT_TIMEOUT")), 9500),
+            ),
+          ]);
+          break;
+        } catch (err) {
+          const errorInstance = err instanceof Error ? err : new Error(String(err));
+          if (attempts >= maxAttempts) throw err;
+          console.warn(
+            `⚠️ YlyaBot attempt ${attempts} failed (${errorInstance.message}). Retrying for warm-start...`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
       setIsTyping(false);
 
       messageIdCounter.current += 1;
