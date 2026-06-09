@@ -124,7 +124,7 @@ export default function YlyaBotPage() {
 
       let output!: Awaited<ReturnType<typeof askYlyaBot>>["output"];
       let attempts = 0;
-      const maxAttempts = 2;
+      const maxAttempts = 4;
 
       while (attempts < maxAttempts) {
         try {
