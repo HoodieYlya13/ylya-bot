@@ -22,6 +22,7 @@ import {
 import { logoutAction } from "./actions";
 import Link from "next/link";
 import { MODELS_ORDER } from "../constants";
+import { tryCatchSync } from "@/lib/utils";
 
 export interface LogEntry {
   id: string;
@@ -68,11 +69,8 @@ export default function MetricsDashboard({
       .toUpperCase()
       .split("")
       .map((char) => 127397 + char.charCodeAt(0));
-    try {
-      return String.fromCodePoint(...codePoints);
-    } catch {
-      return countryCode;
-    }
+    const [err, flag] = tryCatchSync(() => String.fromCodePoint(...codePoints));
+    return err ? countryCode : flag;
   };
 
   const filteredLogs = (() => {

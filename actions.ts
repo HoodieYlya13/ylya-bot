@@ -11,6 +11,7 @@ import { cookies, headers } from "next/headers";
 import { Redis } from "@upstash/redis";
 import { after } from "next/server";
 import { MODELS_ORDER } from "./constants";
+import { tryCatch, tryCatchSync } from "@/lib/utils";
 
 const apiKey = process.env.GEMINI_API_KEY || "";
 
@@ -129,113 +130,131 @@ export async function askYlyaBot(input: {
   });
 
   after(async () => {
-    try {
+    const [afterErr] = await tryCatch(async () => {
       const result = await streamFinishedPromise;
       if (!result) return;
 
       const { text: fullResponseText, model: successModel } = result;
       const latencyMs = firstTokenLatencyMs || Date.now() - startTime;
 
-      await supabase
-        .from("ylyabot_logs")
-        .insert({
-          user_query: latestMessage,
-          bot_response: fullResponseText,
-          model_used: successModel,
-          latency_ms: latencyMs,
-          user_ip: ip,
-          city,
-          country,
-          region,
-          timezone,
-          postal_code: postalCode,
-          user_agent: userAgent,
-          ja4_fingerprint: ja4,
-        })
-        .then(({ error }) => {
-          if (error) {
-            console.warn(
-              "⚠️ Failed to log ylya-bot interaction to Supabase in background:",
-              error.message,
-            );
-          }
-        });
+      const [supabaseErr] = await tryCatch(
+        async () =>
+          await supabase.from("ylyabot_logs").insert({
+            user_query: latestMessage,
+            bot_response: fullResponseText,
+            model_used: successModel,
+            latency_ms: latencyMs,
+            user_ip: ip,
+            city,
+            country,
+            region,
+            timezone,
+            postal_code: postalCode,
+            user_agent: userAgent,
+            ja4_fingerprint: ja4,
+          }),
+      );
+      if (supabaseErr)
+        console.warn(
+          "⚠️ Failed to log ylya-bot interaction to Supabase in background:",
+          supabaseErr instanceof Error
+            ? supabaseErr.message
+            : String(supabaseErr),
+        );
 
       const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
       const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
       if (redisUrl && redisToken) {
         const redis = new Redis({ url: redisUrl, token: redisToken });
         const today = new Date().toISOString().split("T")[0];
-        await Promise.all([
-          redis.incr("ylyabot:metrics:total_requests"),
-          redis.incr(`ylyabot:metrics:daily:${today}`),
-          redis.hincrby("ylyabot:metrics:models", successModel, 1),
-          country
-            ? redis.hincrby("ylyabot:metrics:countries", country, 1)
-            : Promise.resolve(),
-        ]).catch((redisErr) => {
+        const [redisErr] = await tryCatch(
+          Promise.all([
+            redis.incr("ylyabot:metrics:total_requests"),
+            redis.incr(`ylyabot:metrics:daily:${today}`),
+            redis.hincrby("ylyabot:metrics:models", successModel, 1),
+            country
+              ? redis.hincrby("ylyabot:metrics:countries", country, 1)
+              : Promise.resolve(),
+          ]),
+        );
+        if (redisErr)
           console.warn(
             "⚠️ Failed to increment Redis aggregate metrics in background:",
             redisErr,
           );
-        });
       }
-    } catch (afterErr) {
+    });
+
+    if (afterErr)
       console.warn("⚠️ Error in after() background handler:", afterErr);
-    }
   });
 
-  let profileData = null;
-  let contextString =
-    "No specific engineering repository logs found matching this concept.";
+  const [dataErr, prefetchResult] = await tryCatch(async () => {
+    let localContextString =
+      "No specific engineering repository logs found matching this concept.";
 
-  try {
     const [profile, embeddingRes] = await Promise.all([
       getFullProfile(),
-      fetch(embeddingUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: { parts: [{ text: latestMessage }] },
-          outputDimensionality: 768,
-        }),
-      }).catch((err) => {
-        console.warn("⚠️ Embedding network query failed:", err);
-        return null;
-      }),
+      (async () => {
+        const [fetchErr, res] = await tryCatch(
+          fetch(embeddingUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              content: { parts: [{ text: latestMessage }] },
+              outputDimensionality: 768,
+            }),
+          }),
+        );
+        if (fetchErr) {
+          console.warn("⚠️ Embedding network query failed:", fetchErr);
+          return null;
+        }
+        return res;
+      })(),
     ]);
 
-    profileData = profile;
-
     if (embeddingRes && embeddingRes.ok) {
-      const embeddingData = await embeddingRes.json();
-      const queryEmbedding = embeddingData.embedding.values;
+      const [jsonErr, embeddingData] = await tryCatch(embeddingRes.json());
+      if (!jsonErr && embeddingData) {
+        const queryEmbedding = embeddingData.embedding.values;
 
-      const { data: matchedChunks, error: dbError } = await supabase.rpc(
-        "match_portfolio_embeddings",
-        {
-          query_embedding: queryEmbedding,
-          match_threshold: 0.25,
-          match_count: 4,
-        },
-      );
+        const { data: matchedChunks, error: dbError } = await supabase.rpc(
+          "match_portfolio_embeddings",
+          {
+            query_embedding: queryEmbedding,
+            match_threshold: 0.25,
+            match_count: 4,
+          },
+        );
 
-      if (!dbError && matchedChunks && matchedChunks.length > 0) {
-        const typedChunks = matchedChunks as SupabaseVectorChunk[];
-        contextString = typedChunks
-          .map(
-            (chunk) =>
-              `[Project Code: ${chunk.project_name} | ID: ${chunk.project_id}]\n${chunk.content}`,
-          )
-          .join("\n\n");
+        if (!dbError && matchedChunks && matchedChunks.length > 0) {
+          const typedChunks = matchedChunks as SupabaseVectorChunk[];
+          localContextString = typedChunks
+            .map(
+              (chunk) =>
+                `[Project Code: ${chunk.project_name} | ID: ${chunk.project_id}]\n${chunk.content}`,
+            )
+            .join("\n\n");
+        }
       }
     }
-  } catch (dataErr) {
+
+    return { profile, contextString: localContextString };
+  });
+
+  if (dataErr)
     console.warn(
       "⚠️ Data pre-fetching caught expected error, continuing cleanly:",
       dataErr,
     );
-  }
+
+  const profileData =
+    !dataErr && prefetchResult ? prefetchResult.profile : null;
+  const contextString =
+    !dataErr && prefetchResult
+      ? prefetchResult.contextString
+      : "No specific engineering repository logs found matching this concept.";
 
   const profileContextStr = profileData
     ? `
@@ -315,7 +334,7 @@ ${contextString}
   let activeReader: ReadableStreamDefaultReader<string> | null = null;
 
   for (const model of activeModels) {
-    try {
+    const [err, initData] = await tryCatch(async () => {
       console.log(`Trying model: ${model}`);
       const googleClient = getGoogleClient();
       const result = streamText({
@@ -330,13 +349,18 @@ ${contextString}
 
       const reader = result.textStream.getReader();
       const { value } = await reader.read();
-      firstTokenLatencyMs = Date.now() - startTime;
+      const latencyMs = Date.now() - startTime;
 
+      return { reader, value, latencyMs };
+    });
+
+    if (!err && initData) {
+      firstTokenLatencyMs = initData.latencyMs;
       successModel = model;
-      activeReader = reader;
-      if (value) firstChunk = value;
+      activeReader = initData.reader;
+      if (initData.value) firstChunk = initData.value;
       break;
-    } catch (err) {
+    } else if (err) {
       console.error(`🔴 Model ${model} failed to initialize:`, err);
       const errorMsgLower = extractErrorMessage(err);
       const isQuota =
@@ -348,18 +372,19 @@ ${contextString}
         errorMsgLower.includes("nooutputgenerated");
 
       if (isQuota) {
-        try {
+        const [cookieErr] = tryCatchSync(() => {
           const expiry = getPacificMidnightExpiry();
           cookieStore.set(`ylyabot_exhausted_${model}`, "true", {
             expires: expiry,
             path: "/",
           });
+        });
+        if (cookieErr)
+          console.error("⚠️ Failed to set model exhaustion cookie:", cookieErr);
+        else
           console.log(
             `🍪 Excluded model "${model}" with cookie expiring at midnight Pacific time.`,
           );
-        } catch (cookieErr) {
-          console.error("⚠️ Failed to set model exhaustion cookie:", cookieErr);
-        }
       }
     }
   }
@@ -377,7 +402,7 @@ ${contextString}
   let fullResponseText = "";
 
   (async () => {
-    try {
+    const [err] = await tryCatch(async () => {
       while (true) {
         const { value, done } = await activeReader.read();
         if (done) break;
@@ -388,15 +413,17 @@ ${contextString}
       }
       stream.done();
       resolveStreamFinished({ text: fullResponseText, model: successModel });
-    } catch (err) {
+    });
+
+    if (err) {
       console.error("🔴 Background streaming reader loop failed:", err);
       stream.done();
       resolveStreamFinished(null);
-    } finally {
-      try {
-        activeReader.releaseLock();
-      } catch {}
     }
+
+    tryCatchSync(() => {
+      activeReader.releaseLock();
+    });
   })();
 
   return { output: stream.value };

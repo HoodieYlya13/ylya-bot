@@ -5,5 +5,3 @@ export const MODELS_ORDER = [
   "gemma-4-31b-it",
   "gemini-flash-latest",
 ] as const;
-
-export type ModelType = typeof MODELS_ORDER[number];

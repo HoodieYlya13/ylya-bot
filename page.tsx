@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { readStreamableValue } from "@ai-sdk/rsc";
 import { askYlyaBot } from "./actions";
+import { tryCatch } from "@/lib/utils";
 
 interface Message {
   id: string;
@@ -113,38 +114,44 @@ export default function YlyaBotPage() {
     setInputVal("");
     setIsTyping(true);
 
-    try {
-      const apiMessages = updatedMessages
-        .filter((m) => m.id !== "welcome" && !m.id.startsWith("bot-err"))
-        .map((m) => ({
-          role:
-            m.sender === "user" ? ("user" as const) : ("assistant" as const),
-          content: m.text,
-        }));
+    const apiMessages = updatedMessages
+      .filter((m) => m.id !== "welcome" && !m.id.startsWith("bot-err"))
+      .map((m) => ({
+        role:
+          m.sender === "user" ? ("user" as const) : ("assistant" as const),
+        content: m.text,
+      }));
 
+    const [error] = await tryCatch(async () => {
       let output!: Awaited<ReturnType<typeof askYlyaBot>>["output"];
       let attempts = 0;
       const maxAttempts = 4;
 
       while (attempts < maxAttempts) {
-        try {
-          attempts++;
-          output = await Promise.race([
+        const [attemptErr, attemptOutput] = await tryCatch(
+          Promise.race([
             askYlyaBot({ messages: apiMessages }).then((r) => r.output),
             new Promise<Awaited<ReturnType<typeof askYlyaBot>>["output"]>((_, reject) =>
               setTimeout(() => reject(new Error("CLIENT_TIMEOUT")), 9500),
             ),
-          ]);
+          ])
+        );
+
+        if (!attemptErr && attemptOutput) {
+          output = attemptOutput;
           break;
-        } catch (err) {
-          const errorInstance = err instanceof Error ? err : new Error(String(err));
-          if (attempts >= maxAttempts) throw err;
-          console.warn(
-            `⚠️ YlyaBot attempt ${attempts} failed (${errorInstance.message}). Retrying for warm-start...`,
-          );
-          await new Promise((resolve) => setTimeout(resolve, 500));
         }
+
+        attempts++;
+        const errorInstance = attemptErr instanceof Error ? attemptErr : new Error(String(attemptErr));
+        if (attempts >= maxAttempts) throw errorInstance;
+
+        console.warn(
+          `⚠️ YlyaBot attempt ${attempts} failed (${errorInstance.message}). Retrying for warm-start...`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
+
       setIsTyping(false);
 
       messageIdCounter.current += 1;
@@ -180,7 +187,9 @@ export default function YlyaBotPage() {
             : msg,
         ),
       );
-    } catch (error) {
+    });
+
+    if (error) {
       console.error("🔴 Connection to YlyaBot Intelligence failed:", error);
       setIsTyping(false);
 

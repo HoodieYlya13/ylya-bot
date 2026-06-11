@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Redis } from "@upstash/redis";
 import MetricsLoginPage from "./MetricsLoginPage";
 import MetricsDashboard, { LogEntry } from "./MetricsDashboard";
+import { tryCatch } from "@/lib/utils";
 
 const supabase = createClient(
   process.env.SUPABASE_URL || "",
@@ -33,43 +34,49 @@ export default async function MetricsPage() {
   let dbStats = { totalCount: 0, avgLatency: 0 };
   let dbError = "";
 
-  try {
+  const [supabaseErr, supabaseResult] = await tryCatch(async () => {
     const { data, error } = await supabase
       .from("ylyabot_logs")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(50);
 
-    if (error) {
-      if (
-        error.message?.includes("does not exist") ||
-        error.code === "PGRST204" ||
-        error.message?.includes("schema cache")
-      )
-        dbError =
-          "Table public.ylyabot_logs does not exist. Please execute the SQL migration inside your Supabase dashboard!";
-      else dbError = error.message;
-    } else if (data) {
-      recentLogs = data as LogEntry[];
+    if (error) throw error;
 
-      const { data: allStats, error: allStatsError } = await supabase
-        .from("ylyabot_logs")
-        .select("latency_ms");
+    let totalCount = 0;
+    let avgLatency = 0;
+    const logs = (data || []) as LogEntry[];
 
-      if (!allStatsError && allStats) {
-        const sum = allStats.reduce(
-          (acc, row) => acc + (row.latency_ms || 0),
-          0,
-        );
-        dbStats = {
-          totalCount: allStats.length,
-          avgLatency:
-            allStats.length > 0 ? Math.round(sum / allStats.length) : 0,
-        };
-      }
+    const { data: allStats, error: allStatsError } = await supabase
+      .from("ylyabot_logs")
+      .select("latency_ms");
+
+    if (allStatsError) throw allStatsError;
+
+    if (allStats) {
+      const sum = allStats.reduce((acc, row) => acc + (row.latency_ms || 0), 0);
+      totalCount = allStats.length;
+      avgLatency = allStats.length > 0 ? Math.round(sum / allStats.length) : 0;
     }
-  } catch (dbErr) {
-    dbError = dbErr instanceof Error ? dbErr.message : String(dbErr);
+
+    return { logs, dbStats: { totalCount, avgLatency } };
+  });
+
+  if (supabaseErr) {
+    const errMessage =
+      supabaseErr instanceof Error ? supabaseErr.message : String(supabaseErr);
+    const errCode = (supabaseErr as { code?: string }).code;
+    if (
+      errMessage?.includes("does not exist") ||
+      errCode === "PGRST204" ||
+      errMessage?.includes("schema cache")
+    )
+      dbError =
+        "Table public.ylyabot_logs does not exist. Please execute the SQL migration inside your Supabase dashboard!";
+    else dbError = errMessage;
+  } else if (supabaseResult) {
+    recentLogs = supabaseResult.logs;
+    dbStats = supabaseResult.dbStats;
   }
 
   let redisStats: RedisStats | null = null;
@@ -77,7 +84,7 @@ export default async function MetricsPage() {
   const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
 
   if (redisUrl && redisToken) {
-    try {
+    const [redisErr, stats] = await tryCatch(async () => {
       const redis = new Redis({ url: redisUrl, token: redisToken });
 
       const days: string[] = [];
@@ -103,20 +110,22 @@ export default async function MetricsPage() {
         count: Number(dailyValues[idx] || 0),
       }));
 
-      redisStats = {
+      return {
         totalRequests: Number(totalRequests || 0),
         dailyBreakdown,
         models: (modelsHash || {}) as Record<string, string | number>,
         countries: (countriesHash || {}) as Record<string, string | number>,
       };
-    } catch (redisErr) {
+    });
+
+    if (redisErr) {
       const errorMsg =
         redisErr instanceof Error ? redisErr.message : String(redisErr);
       console.warn(
         "⚠️ Failed to load Redis aggregate metrics on server render:",
         errorMsg,
       );
-    }
+    } else if (stats) redisStats = stats;
   }
 
   return (
