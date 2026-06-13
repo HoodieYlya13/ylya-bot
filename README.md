@@ -26,7 +26,7 @@ YlyaBot does not rely on generic pre-trained LLM assumptions. Instead, it utiliz
 flowchart TD
     %% Core Inputs
     ProfileJSON[("📄 profile.json<br>(Central SSoT Repo)")]
-    Repos[("📦 16 GitHub Repositories<br>(Ecosystem Matrices)")]
+    Repos[("📦 17 GitHub Repositories<br>(Ecosystem Matrices)")]
 
     %% Ingestion Pipeline
     subgraph IngestionPipeline ["🧬 Codebase Ingestion & Vectorization Engine"]
